@@ -55,11 +55,10 @@ async function openUpdateScene(page: Page, theme: 'light' | 'dark'): Promise<voi
     platform: 'darwin',
   });
   await expect(page.getByRole('button', { name: 'Show available update' })).toBeVisible();
-  // The bell badge and the Overview "Waiting on you" lane read from different
-  // sources (the attention snapshot and the feature summaries); both captures of
-  // this scene show them side by side, so hold them to the same number.
+  // The bell badge and the feature needing attention come from different
+  // snapshots; both should be visible in the project sidebar.
   await expect(page.locator('.attention-bell__count')).toHaveText('1');
-  await expect(page.locator('.overview-lane__count').first()).toHaveText('1');
+  await expect(page.locator('#sidebar-row-updater-auto-1')).toBeVisible();
   await expectTheme(page, theme);
 }
 

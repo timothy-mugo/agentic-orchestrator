@@ -1405,6 +1405,38 @@ func TestBuildSessionForwardsProviderBoundaries(t *testing.T) {
 	}
 }
 
+func TestBuildSessionOmitsSkillDirsFromExplicitWritableRoots(t *testing.T) {
+	dir := t.TempDir()
+	stateDir := filepath.Join(dir, "features")
+	workDir := filepath.Join(dir, "repo")
+	skillsDir := filepath.Join(dir, "skills")
+	for _, d := range []string{stateDir, workDir, skillsDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", d, err)
+		}
+	}
+	provider := &captureProvider{name: "capture", model: "model-a"}
+	pr := NewPhaseRunner(session.NewManager(make(chan any, 8)), feature.NewStore(stateDir), stateDir)
+	pr.Registry = newRegistryWithCaptureProvider(provider)
+	pr.SkillsDir = skillsDir
+	_, _, _, err := pr.BuildSession(BuildSessionOpts{
+		Model:         "model-a",
+		WorkDir:       workDir,
+		WritableRoots: []string{workDir, skillsDir},
+	})
+	if err != nil {
+		t.Fatalf("BuildSession() error: %v", err)
+	}
+	for _, roots := range [][]string{provider.buildOpts.WritableRoots, provider.protocolOpts.WritableRoots} {
+		if slices.Contains(roots, skillsDir) {
+			t.Fatalf("WritableRoots = %v, skill dir %q must stay read-only", roots, skillsDir)
+		}
+		if !slices.Contains(roots, workDir) {
+			t.Fatalf("WritableRoots = %v, missing %q", roots, workDir)
+		}
+	}
+}
+
 func TestWatchdogConfigForProviderCapability(t *testing.T) {
 	if got := watchdogConfigForProvider(&mockStartupProvider{name: "plain"}); got != nil {
 		t.Fatalf("watchdogConfigForProvider(plain) = %#v, want nil", got)
@@ -2732,10 +2764,10 @@ func TestBuildSession_SkillsInjection_Codex(t *testing.T) {
 		t.Fatalf("expected *codex.Protocol, got %T", sessOpts.Protocol)
 	}
 
-	// Verify WritableRoots contains skillsDir
+	// The skill directory is mounted for reading and must not be writable.
 	roots := cp.WritableRootsForTest()
-	if !slices.Contains(roots, skillsDir) {
-		t.Errorf("WritableRoots %v does not contain skillsDir %q", roots, skillsDir)
+	if slices.Contains(roots, skillsDir) {
+		t.Errorf("WritableRoots %v includes read-only skill dir %q", roots, skillsDir)
 	}
 
 	// The retired "Available Skills" discovery table must not be appended

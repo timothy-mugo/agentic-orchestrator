@@ -740,7 +740,7 @@ export async function selectSettingsPane(page: Page, label: SettingsPaneLabel): 
   await row.click();
   await expect(row).toHaveAttribute('aria-selected', 'true');
   await expect(
-    page.locator('.settings-window__pane').getByRole('heading', { name: label }),
+    page.locator('.settings-window__pane').getByRole('heading', { name: label, exact: true }),
   ).toBeVisible();
 }
 

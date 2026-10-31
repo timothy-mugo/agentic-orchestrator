@@ -360,11 +360,88 @@ function limitOpenCodeModels(catalogue: ModelCatalogue): ModelCatalogue {
         provider === 'opencode' ? ids.filter((id) => keptIds.has(id)) : ids;
     }
   }
-  return {
+  const limited: ModelCatalogue = {
     ...catalogue,
     providerModels: { ...catalogue.providerModels, opencode: kept },
     phaseProviderModels,
   };
+  return { ...limited, phaseDefaults: reconcilePhaseDefaults(limited) };
+}
+
+const PHASE_DEFAULT_KEYS = [
+  'inquiry',
+  'research',
+  'planning',
+  'implementation',
+  'review',
+  'utilities',
+  'kbBuild',
+  'automaticReview',
+] as const satisfies readonly (keyof ModelCatalogue['phaseDefaults'])[];
+
+const PHASE_DEFAULT_ROLE: Record<(typeof PHASE_DEFAULT_KEYS)[number], string> = {
+  inquiry: 'inquiry',
+  research: 'research',
+  planning: 'planning',
+  implementation: 'implementation',
+  review: 'review',
+  utilities: 'utilities',
+  kbBuild: 'kb_build',
+  automaticReview: 'automatic_review',
+};
+
+/** Points a phase default at a model that survived the OpenCode limit. */
+function reconcilePhaseDefaults(catalogue: ModelCatalogue): ModelCatalogue['phaseDefaults'] {
+  const phaseDefaults = { ...catalogue.phaseDefaults };
+  const multiple = catalogue.providerOrder.length > 1;
+  for (const key of PHASE_DEFAULT_KEYS) {
+    const value = phaseDefaults[key];
+    if (value === undefined || value === '') continue;
+    if (selectionStillOffered(catalogue, value)) continue;
+    const replacement = replacementForDroppedDefault(
+      catalogue,
+      value,
+      PHASE_DEFAULT_ROLE[key],
+      multiple,
+    );
+    if (replacement === undefined) delete phaseDefaults[key];
+    else phaseDefaults[key] = replacement;
+  }
+  return phaseDefaults;
+}
+
+function selectionStillOffered(catalogue: ModelCatalogue, value: string): boolean {
+  const { provider, id } = splitSelection(value);
+  const providers = provider === undefined ? Object.keys(catalogue.providerModels) : [provider];
+  return providers.some((name) =>
+    (catalogue.providerModels[name] ?? []).some(
+      (model) => model.id === id || (model.aliases ?? []).includes(id),
+    ),
+  );
+}
+
+function replacementForDroppedDefault(
+  catalogue: ModelCatalogue,
+  value: string,
+  role: string,
+  multiple: boolean,
+): string | undefined {
+  const normalized = normalizeModelName(splitSelection(value).id);
+  for (const provider of ['claude', 'codex']) {
+    for (const model of catalogue.providerModels[provider] ?? []) {
+      if (!modelNames(model).includes(normalized)) continue;
+      return multiple ? `${provider}:${model.id}` : model.id;
+    }
+  }
+  const first = catalogue.phaseProviderModels[role]?.opencode?.[0];
+  if (first === undefined) return undefined;
+  return multiple ? `opencode:${first}` : first;
+}
+
+function splitSelection(value: string): { provider?: string; id: string } {
+  const colon = value.indexOf(':');
+  if (colon === -1) return { id: value };
+  return { provider: value.slice(0, colon), id: value.slice(colon + 1) };
 }
 
 function modelNames(model: { id: string; aliases?: readonly string[] }): string[] {

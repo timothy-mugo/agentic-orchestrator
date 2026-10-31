@@ -1229,7 +1229,7 @@ func skillCatalogDTO(cfg *config.Config, runtimeDir string) SkillCatalog {
 		skillsDir = filepath.Join(runtimeDir, "skills")
 		guidelinesDir = filepath.Join(runtimeDir, "guidelines")
 	}
-	cat := skillcatalog.Resolve(cfg.Skills, skillsDir, guidelinesDir, skillcatalog.DefaultUserSkillsDir())
+	cat := skillcatalog.Resolve(cfg.CloneSkills(), skillsDir, guidelinesDir, skillcatalog.DefaultUserSkillsDir())
 	entries := make([]SkillCatalogEntry, 0, len(cat.Entries))
 	for _, entry := range cat.Entries {
 		entries = append(entries, SkillCatalogEntry{
@@ -1453,7 +1453,7 @@ func runtimeConfigRepoSnapshot(cfg *config.Config) *config.Config {
 	if cfg == nil {
 		return config.NewDefault()
 	}
-	snapshot := *cfg
+	snapshot := *cfg.Clone()
 	snapshot.WorkspaceRoots = append([]string(nil), cfg.WorkspaceRoots...)
 	snapshot.Repos = copyConfigRepoMap(cfg.Repos)
 	snapshot.DiscoveredRepos = copyConfigRepoMap(cfg.DiscoveredRepos)

@@ -1091,12 +1091,14 @@ func (h *apiHandler) handleRuntimeConfigRoute(w http.ResponseWriter, r *http.Req
 				return false
 			}
 			if req.Skills != nil {
-				cleaned, err := skillcatalog.CleanRoots(req.Skills.Roots)
+				current := h.configOrDefault().CloneSkills()
+				kept, fresh := skillcatalog.PartitionRoots(current.Roots, req.Skills.Roots)
+				cleaned, err := skillcatalog.CleanRoots(fresh)
 				if err != nil {
 					writeAPIError(w, http.StatusBadRequest, errcat.BadRequest, errcat.WithDiagnostics(err.Error()))
 					return false
 				}
-				req.Skills.Roots = cleaned
+				req.Skills.Roots = append(kept, cleaned...)
 			}
 			return req.WorkspaceRoots == nil || validateWorkspaceRootPaths(w, *req.WorkspaceRoots)
 		}, func(req RuntimeConfigMutationRequest) (RuntimeConfigUpdateResponse, error) {

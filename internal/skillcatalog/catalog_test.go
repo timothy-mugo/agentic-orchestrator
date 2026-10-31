@@ -17,6 +17,7 @@ package skillcatalog
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/doordash-oss/agentic-orchestrator/internal/config"
@@ -105,10 +106,50 @@ func TestResolveSkipsUnreadableRootsAndDuplicateNames(t *testing.T) {
 	extra := t.TempDir()
 	writeSkill(t, filepath.Join(extra, "shared"), "shared", "from the extra folder")
 
-	cat := Resolve(config.SkillsConfig{Roots: []string{extra, filepath.Join(extra, "missing")}}, t.TempDir(), t.TempDir(), user)
+	missing := filepath.Join(extra, "missing")
+	cat := Resolve(config.SkillsConfig{Roots: []string{extra, missing}}, t.TempDir(), t.TempDir(), user)
 	got := mustEntry(t, cat, "external:shared")
 	if got.Description != "from the user folder" {
 		t.Fatalf("duplicate skill kept %q", got.Description)
+	}
+	if len(cat.Roots) != 2 || cat.Roots[0] != extra || cat.Roots[1] != missing {
+		t.Fatalf("roots = %#v, want the missing folder kept", cat.Roots)
+	}
+}
+
+func TestPartitionRootsKeepsAConfiguredFolderThatIsMissing(t *testing.T) {
+	kept, fresh := PartitionRoots([]string{"/skills/saved"}, []string{"/skills/saved", "/skills/new"})
+	if len(kept) != 1 || kept[0] != "/skills/saved" {
+		t.Fatalf("kept = %#v", kept)
+	}
+	if len(fresh) != 1 || fresh[0] != "/skills/new" {
+		t.Fatalf("fresh = %#v", fresh)
+	}
+}
+
+func TestResolveFollowsSkillDirectorySymlinks(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(t.TempDir(), "real")
+	writeSkill(t, target, "linked", "via symlink")
+	if err := os.Symlink(target, filepath.Join(root, "linked")); err != nil {
+		t.Fatal(err)
+	}
+	cat := Resolve(config.SkillsConfig{Roots: []string{root}, Enabled: []string{"external:linked"}}, t.TempDir(), t.TempDir(), "")
+	got := mustEntry(t, cat, "external:linked")
+	if !got.Enabled {
+		t.Fatal("linked skill was discovered but left off")
+	}
+}
+
+func TestResolveOmitsExternalSkillsWhoseIDExceedsTheCatalogLimit(t *testing.T) {
+	root := t.TempDir()
+	name := strings.Repeat("n", 200)
+	writeSkill(t, filepath.Join(root, "long"), name, "too long to cross the desktop catalog")
+	cat := Resolve(config.SkillsConfig{Roots: []string{root}}, t.TempDir(), t.TempDir(), "")
+	for _, entry := range cat.Entries {
+		if entry.Origin == OriginExternal {
+			t.Fatalf("kept oversized skill %s", entry.ID)
+		}
 	}
 }
 

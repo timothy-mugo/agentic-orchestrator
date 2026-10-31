@@ -500,13 +500,19 @@ func (t *mutationTarget) RuntimeConfig(req serverruntime.RuntimeConfigMutationRe
 		changed = true
 	}
 	if req.Skills != nil {
-		next := *req.Skills
-		if !slices.Equal(cfg.Skills.Roots, next.Roots) || !slices.Equal(cfg.Skills.Disabled, next.Disabled) || !slices.Equal(cfg.Skills.Enabled, next.Enabled) {
+		next := config.SkillsConfig{
+			Roots:    append([]string(nil), req.Skills.Roots...),
+			Disabled: append([]string(nil), req.Skills.Disabled...),
+			Enabled:  append([]string(nil), req.Skills.Enabled...),
+		}
+		current := cfg.CloneSkills()
+		if !slices.Equal(current.Roots, next.Roots) || !slices.Equal(current.Disabled, next.Disabled) || !slices.Equal(current.Enabled, next.Enabled) {
 			changed = true
 		}
-		cfg.Skills = next
-	}
-	if err := config.Save(t.configPath, cfg); err != nil {
+		if err := cfg.CommitSkills(t.configPath, next); err != nil {
+			return serverruntime.RuntimeConfigUpdateResponse{}, err
+		}
+	} else if err := config.Save(t.configPath, cfg); err != nil {
 		return serverruntime.RuntimeConfigUpdateResponse{}, err
 	}
 	t.cfg = cfg

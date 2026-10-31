@@ -232,6 +232,8 @@ export class SetupService {
 
   /** Replaces the switch list. The returned catalog is the server's view after the save. */
   async updateSkillPolicy(policy: SkillPolicy): Promise<SkillCatalog> {
+    const before = this.captureIdentity();
+    this.assertSameServer(before);
     await this.api('/api/v1/config/runtime', {
       method: 'PATCH',
       body: {
@@ -242,7 +244,17 @@ export class SetupService {
         },
       },
     });
-    return this.getSkillCatalog();
+    this.assertSameServer(before);
+    try {
+      const catalog = await this.getSkillCatalog();
+      this.assertSameServer(before);
+      return catalog;
+    } catch (err) {
+      if (err instanceof CanonicalErrorException && err.canonical.code === 'E_SERVER_SWITCHED') {
+        throw err;
+      }
+      throw new CanonicalErrorException(buildCanonicalError('E_SKILL_CATALOG_REFRESH'));
+    }
   }
 
   /** Repository choices always come from fresh server discovery. */
@@ -271,6 +283,10 @@ export class SetupService {
   }
 }
 
+function catalogFieldFits(value: string, min: number, max: number): boolean {
+  return value.length >= min && value.length <= max;
+}
+
 function toSkillCatalog(server: {
   skill_catalog?: {
     roots?: string[];
@@ -291,6 +307,9 @@ function toSkillCatalog(server: {
   const entries: SkillCatalogEntry[] = (catalog?.entries ?? []).flatMap((entry) => {
     if (entry.kind !== 'skill' && entry.kind !== 'guideline') return [];
     if (entry.origin !== 'builtin' && entry.origin !== 'external') return [];
+    if (!catalogFieldFits(entry.id, 1, 200)) return [];
+    if (!catalogFieldFits(entry.name, 0, 200)) return [];
+    if (!catalogFieldFits(entry.path, 0, 4096)) return [];
     return [
       {
         id: entry.id,
@@ -305,8 +324,10 @@ function toSkillCatalog(server: {
     ];
   });
   return {
-    roots: catalog?.roots ?? [],
-    implicitRoots: catalog?.implicit_roots ?? [],
+    roots: (catalog?.roots ?? []).filter((root) => catalogFieldFits(root, 0, 4096)),
+    implicitRoots: (catalog?.implicit_roots ?? []).filter((root) =>
+      catalogFieldFits(root, 0, 4096),
+    ),
     entries,
   };
 }

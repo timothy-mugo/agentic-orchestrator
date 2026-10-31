@@ -16,6 +16,7 @@ package agent
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -33,10 +34,11 @@ import (
 // contextReadTracker holds the directories and observer needed to track
 // reads of KB, skill, and guideline files during agent sessions.
 type contextReadTracker struct {
-	KBBaseDir     string
-	SkillsDir     string
-	GuidelinesDir string
-	Observer      *observe.Observer
+	KBBaseDir         string
+	SkillsDir         string
+	GuidelinesDir     string
+	ExternalSkillDirs []string
+	Observer          *observe.Observer
 }
 
 // install sets an onToolAllowed callback on the session that emits
@@ -52,7 +54,7 @@ func (t *contextReadTracker) install(sess interface {
 		if read.FilePath == "" {
 			return
 		}
-		category, ok := classifyContextRead(read.FilePath, t.KBBaseDir, t.SkillsDir, t.GuidelinesDir)
+		category, ok := classifyContextRead(read.FilePath, t.KBBaseDir, t.SkillsDir, t.GuidelinesDir, t.ExternalSkillDirs)
 		if !ok {
 			return
 		}
@@ -85,10 +87,11 @@ func (pr *PhaseRunner) installContextReadTracker(sess interface {
 	SetOnFileRead(func(llm.FileReadEvent))
 }, sc observe.SpanContext, phase, sessionID, stateDir string) {
 	tracker := &contextReadTracker{
-		KBBaseDir:     filepath.Join(filepath.Dir(stateDir), "knowledge-base"),
-		SkillsDir:     pr.SkillsDir,
-		GuidelinesDir: pr.GuidelinesDir,
-		Observer:      pr.Observer,
+		KBBaseDir:         filepath.Join(filepath.Dir(stateDir), "knowledge-base"),
+		SkillsDir:         pr.SkillsDir,
+		GuidelinesDir:     pr.GuidelinesDir,
+		ExternalSkillDirs: pr.skillFilter().Dirs(),
+		Observer:          pr.Observer,
 	}
 	tracker.install(sess, sc, phase, sessionID)
 }
@@ -163,7 +166,7 @@ func (pr *PhaseRunner) installSubagentProgressTracker(sess interface {
 // classifyContextRead determines if a file path is a KB, skill, or guideline
 // file. Returns the category ("kb", "skill", "guideline") and true, or "" and
 // false if the path doesn't match any context directory.
-func classifyContextRead(filePath, kbBaseDir, skillsDir, guidelinesDir string) (category string, ok bool) {
+func classifyContextRead(filePath, kbBaseDir, skillsDir, guidelinesDir string, externalSkillDirs []string) (category string, ok bool) {
 	if kbBaseDir != "" && strings.HasPrefix(filePath, kbBaseDir) {
 		return "kb", true
 	}
@@ -173,7 +176,30 @@ func classifyContextRead(filePath, kbBaseDir, skillsDir, guidelinesDir string) (
 	if guidelinesDir != "" && strings.HasPrefix(filePath, guidelinesDir) {
 		return "guideline", true
 	}
+	for _, dir := range externalSkillDirs {
+		if pathWithin(filePath, dir) {
+			return "skill", true
+		}
+	}
 	return "", false
+}
+
+// pathWithin reports whether filePath is dir or a file inside it.
+// A sibling such as dir+"-extra" does not match.
+func pathWithin(filePath, dir string) bool {
+	if filePath == "" || dir == "" {
+		return false
+	}
+	filePath = filepath.Clean(filePath)
+	dir = filepath.Clean(dir)
+	if filePath == dir {
+		return true
+	}
+	sep := string(os.PathSeparator)
+	if !strings.HasSuffix(dir, sep) {
+		dir += sep
+	}
+	return strings.HasPrefix(filePath, dir)
 }
 
 // buildPreflightInput projects KBInfo / phase / skillsDir / guidelinesDir

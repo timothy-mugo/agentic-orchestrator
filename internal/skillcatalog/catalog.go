@@ -18,6 +18,7 @@ package skillcatalog
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -124,15 +125,18 @@ func (f Filter) Dirs() []string {
 
 // Resolve builds the catalog. userSkillsDir is the default folder scanned
 // even when it is not listed in policy.Roots; pass "" to skip it.
-// skillsDir and guidelinesDir are the reconciled on-disk copies. Missing
-// extra roots are skipped so a stale path cannot hide the rest of the list.
+// skillsDir and guidelinesDir are the reconciled on-disk copies. A configured
+// root that is missing stays in the catalog so a later switch does not drop
+// it; discovery is skipped until the directory is readable again.
 func Resolve(policy config.SkillsConfig, skillsDir, guidelinesDir, userSkillsDir string) Catalog {
 	disabled := setOf(policy.Disabled)
 	enabled := setOf(policy.Enabled)
 	optional := setOf(utilskill.All())
 
 	var entries []Entry
-	if defs, err := guidelinedef.ParseEmbedded(); err == nil {
+	if defs, err := guidelinedef.ParseEmbedded(); err != nil {
+		log.Printf("skillcatalog: embedded guidelines: %v", err)
+	} else {
 		names := sortedKeys(defs)
 		for _, name := range names {
 			def := defs[name]
@@ -153,7 +157,9 @@ func Resolve(policy config.SkillsConfig, skillsDir, guidelinesDir, userSkillsDir
 			})
 		}
 	}
-	if defs, err := skilldef.ParseEmbedded(); err == nil {
+	if defs, err := skilldef.ParseEmbedded(); err != nil {
+		log.Printf("skillcatalog: embedded skills: %v", err)
+	} else {
 		names := sortedSkillKeys(defs)
 		for _, name := range names {
 			def := defs[name]
@@ -195,11 +201,11 @@ func Resolve(policy config.SkillsConfig, skillsDir, guidelinesDir, userSkillsDir
 		}
 	}
 	for _, root := range policy.Roots {
+		roots = append(roots, root)
 		info, err := os.Stat(root)
 		if err != nil || !info.IsDir() {
 			continue
 		}
-		roots = append(roots, root)
 		entries = append(entries, discoverDir(root, enabled, seenSkills)...)
 	}
 
@@ -257,14 +263,22 @@ func discoverDir(root string, enabled map[string]struct{}, seen map[string]struc
 		return entries
 	}
 	for _, child := range children {
-		if !child.IsDir() {
+		childPath := filepath.Join(root, child.Name())
+		// DirEntry.IsDir is false for a symlink to a directory. Stat follows
+		// that link so a skill folder linked into the root is still listed.
+		if !isDir(childPath) {
 			continue
 		}
-		if entry, ok := skillEntry(filepath.Join(root, child.Name()), enabled, seen); ok {
+		if entry, ok := skillEntry(childPath, enabled, seen); ok {
 			entries = append(entries, entry)
 		}
 	}
 	return entries
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func skillEntry(dir string, enabled map[string]struct{}, seen map[string]struct{}) (Entry, bool) {
@@ -277,11 +291,16 @@ func skillEntry(dir string, enabled map[string]struct{}, seen map[string]struct{
 	if description == "" {
 		return Entry{}, false
 	}
+	id := "external:" + name
+	// The desktop catalog schema rejects the whole list when one id, name, or
+	// path exceeds these limits, so an oversized definition is omitted.
+	if len(id) > 200 || len(name) > 200 || len(path) > 4096 {
+		return Entry{}, false
+	}
 	if _, dup := seen[name]; dup {
 		return Entry{}, false
 	}
 	seen[name] = struct{}{}
-	id := "external:" + name
 	if topics == "" {
 		topics = "—"
 	}
@@ -329,6 +348,24 @@ func parseSkillFrontmatter(content, fallbackName string) (name, description, top
 		}
 	}
 	return name, description, topics
+}
+
+// PartitionRoots splits requested into folders already saved and folders that
+// still need a filesystem check. A saved folder that cannot be opened stays
+// in the list so the next switch does not drop it.
+func PartitionRoots(current, requested []string) (kept, fresh []string) {
+	known := make(map[string]struct{}, len(current))
+	for _, root := range current {
+		known[root] = struct{}{}
+	}
+	for _, root := range requested {
+		if _, ok := known[strings.TrimSpace(root)]; ok {
+			kept = append(kept, root)
+			continue
+		}
+		fresh = append(fresh, root)
+	}
+	return kept, fresh
 }
 
 // CleanRoots checks that every extra skill folder exists and returns the

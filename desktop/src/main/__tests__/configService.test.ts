@@ -283,11 +283,18 @@ describe('ConfigService effort routing', () => {
           codex: [{ id: 'gpt-6.1-sol[872K]', aliases: ['gpt-6.1-sol'] }],
           opencode,
         },
-        phase_defaults: {},
+        phase_defaults: {
+          implementation: 'opencode:openai/gpt-6.1-sol[500K]',
+          review: 'opencode:other/model-84',
+          planning: 'claude:opus',
+        },
         phase_provider_models: {
           implementation: {
             claude: ['opus'],
             codex: ['gpt-6.1-sol[872K]'],
+            opencode: opencode.map((model) => model.id),
+          },
+          review: {
             opencode: opencode.map((model) => model.id),
           },
         },
@@ -302,5 +309,8 @@ describe('ConfigService effort routing', () => {
     expect(catalogue.providerModels.opencode?.map((model) => model.id)).toEqual(kept);
     expect(catalogue.phaseProviderModels.implementation?.opencode).toEqual(kept);
     expect(catalogue.phaseProviderModels.implementation?.claude).toEqual(['opus']);
+    expect(catalogue.phaseDefaults.implementation).toBe('codex:gpt-6.1-sol[872K]');
+    expect(catalogue.phaseDefaults.review).toBe('opencode:other/model-0');
+    expect(catalogue.phaseDefaults.planning).toBe('claude:opus');
   });
 });

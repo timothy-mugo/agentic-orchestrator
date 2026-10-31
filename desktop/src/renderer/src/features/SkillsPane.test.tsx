@@ -1,22 +1,7 @@
-/*
-Copyright 2026 DoorDash, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
+import { buildCanonicalError, CanonicalErrorException } from '../../../shared/errors';
 import type { SkillCatalogEntry } from '../../../shared/ipc';
 import { installAgenticoMock } from '../test/agenticoMock';
 import { SkillsPane } from './SkillsPane';
@@ -130,5 +115,39 @@ describe('SkillsPane', () => {
         enabled: [],
       }),
     );
+  });
+
+  it('hides folder removal when the server is remote', async () => {
+    const mock = installAgenticoMock();
+    mock.api.getSkillCatalog.mockResolvedValue({
+      roots: ['/skills/superpowers'],
+      implicitRoots: [],
+      entries: [],
+    });
+
+    render(<SkillsPane remote />);
+    expect(await screen.findByText('/skills/superpowers')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add skill folder' })).toBeNull();
+  });
+
+  it('keeps a switch that was saved when the list cannot be refreshed', async () => {
+    const user = userEvent.setup();
+    const mock = installAgenticoMock();
+    mock.api.getSkillCatalog.mockResolvedValue({
+      roots: [],
+      implicitRoots: [],
+      entries: [debugging],
+    });
+    mock.api.updateSkillPolicy.mockRejectedValue(
+      new CanonicalErrorException(buildCanonicalError('E_SKILL_CATALOG_REFRESH')),
+    );
+
+    render(<SkillsPane remote={false} />);
+    const debugSwitch = await screen.findByRole('checkbox', { name: /systematic-debugging/ });
+    await user.click(debugSwitch);
+
+    await waitFor(() => expect(debugSwitch).toBeChecked());
+    expect(screen.queryByText(/could not be refreshed/)).toBeNull();
   });
 });

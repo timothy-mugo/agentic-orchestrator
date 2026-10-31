@@ -1705,10 +1705,11 @@ attemptLoop:
 				}
 				cfg.Observer.SessionStarted(planSessionCtx, "plan", sessionID, providerName, cfg.Feature.Models.Planning, cfg.RepoName, string(cfg.EffectiveEffort), string(cfg.EffortSource))
 				(&contextReadTracker{
-					KBBaseDir:     filepath.Join(filepath.Dir(cfg.StateDir), "knowledge-base"),
-					SkillsDir:     cfg.SkillsDir,
-					GuidelinesDir: cfg.GuidelinesDir,
-					Observer:      cfg.Observer,
+					KBBaseDir:         filepath.Join(filepath.Dir(cfg.StateDir), "knowledge-base"),
+					SkillsDir:         cfg.SkillsDir,
+					GuidelinesDir:     cfg.GuidelinesDir,
+					ExternalSkillDirs: cfg.SkillFilter.Dirs(),
+					Observer:          cfg.Observer,
 				}).install(sess, planSessionCtx, "plan", sessionID)
 				sessionStart := time.Now()
 

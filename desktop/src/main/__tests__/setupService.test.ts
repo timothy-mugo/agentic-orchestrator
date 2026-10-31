@@ -668,3 +668,54 @@ describe('runtime-only setup', () => {
     ]);
   });
 });
+
+function runtimeConfigBody(skillCatalog: Record<string, unknown>): Record<string, unknown> {
+  return {
+    api_version: 'v1',
+    feature_defaults: { models: {} },
+    notifications: { mute_feature_input: false },
+    skill_catalog: skillCatalog,
+  };
+}
+
+const shortSkill = {
+  id: 'external:short',
+  name: 'short',
+  description: 'fits',
+  kind: 'skill',
+  origin: 'external',
+  path: '/skills/short/SKILL.md',
+  enabled: false,
+  toggleable: true,
+};
+
+describe('SetupService skill catalog', () => {
+  it('omits an entry whose id would reject the whole catalog', async () => {
+    const { service } = makeService(() => ({
+      status: 200,
+      body: runtimeConfigBody({
+        roots: ['/skills', 'x'.repeat(4097)],
+        implicit_roots: ['/home/skills'],
+        entries: [
+          shortSkill,
+          { ...shortSkill, id: 'external:' + 'n'.repeat(200), name: 'n'.repeat(200) },
+        ],
+      }),
+    }));
+
+    const catalog = await service.getSkillCatalog();
+    expect(catalog.entries.map((entry) => entry.id)).toEqual(['external:short']);
+    expect(catalog.roots).toEqual(['/skills']);
+  });
+
+  it('reports a refresh failure after the policy was saved', async () => {
+    const { service } = makeService((_path, init) => {
+      if (init?.method === 'PATCH') return { status: 200, body: { result: 'updated' } };
+      return { status: 500, body: {} };
+    });
+
+    await expect(
+      service.updateSkillPolicy({ roots: ['/skills'], disabled: [], enabled: [] }),
+    ).rejects.toMatchObject({ canonical: { code: 'E_SKILL_CATALOG_REFRESH' } });
+  });
+});

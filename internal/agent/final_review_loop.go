@@ -883,10 +883,11 @@ func (s *featureFinalReviewLoopState) observeFinalReviewSession(sess ports.Sessi
 	sessionCtx := observe.SpanContextForFeature(cfg.Feature.ID, cfg.Feature.TraceID, cfg.Feature.Name, cfg.Feature.FeatureSpanID).WithRun(cfg.Feature.ActiveRun).Child()
 	cfg.Observer.SessionStarted(sessionCtx, feature.PhaseFinalReview.String(), sessionID, providerName, model, "", string(cfg.ImplEffectiveEffort), string(cfg.ImplEffortSource))
 	(&contextReadTracker{
-		KBBaseDir:     filepath.Join(filepath.Dir(cfg.StateDir), "knowledge-base"),
-		SkillsDir:     cfg.SkillsDir,
-		GuidelinesDir: cfg.GuidelinesDir,
-		Observer:      cfg.Observer,
+		KBBaseDir:         filepath.Join(filepath.Dir(cfg.StateDir), "knowledge-base"),
+		SkillsDir:         cfg.SkillsDir,
+		GuidelinesDir:     cfg.GuidelinesDir,
+		ExternalSkillDirs: cfg.SkillFilter.Dirs(),
+		Observer:          cfg.Observer,
 	}).install(sess, sessionCtx, feature.PhaseFinalReview.String(), sessionID)
 	return sessionCtx, time.Now(), true
 }

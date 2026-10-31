@@ -1,19 +1,3 @@
-/*
-Copyright 2026 DoorDash, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 /**
  * Settings → Skills. Lists the language guidelines and skills the connected
  * server can offer an agent, and saves each switch through the runtime config.
@@ -58,13 +42,18 @@ export function SkillsPane({ remote }: { remote: boolean }) {
     void reload();
   }, [reload]);
 
-  const save = useCallback(async (policy: SkillPolicy) => {
+  const save = useCallback(async (policy: SkillPolicy, optimistic: SkillCatalog) => {
     setBusy(true);
     setError(null);
     try {
       setCatalog(await window.agentico.updateSkillPolicy(policy));
     } catch (err) {
-      setError(parseIpcError(err).summary);
+      const parsed = parseIpcError(err);
+      if (parsed.code === 'E_SKILL_CATALOG_REFRESH') {
+        setCatalog(optimistic);
+        return;
+      }
+      setError(parsed.summary);
     } finally {
       setBusy(false);
     }
@@ -77,7 +66,7 @@ export function SkillsPane({ remote }: { remote: boolean }) {
         row.id === entry.id ? { ...row, enabled: !row.enabled } : row,
       ),
     };
-    void save(policyFor(next));
+    void save(policyFor(next), next);
   };
 
   const addFolder = async () => {
@@ -88,19 +77,16 @@ export function SkillsPane({ remote }: { remote: boolean }) {
       if (catalog.roots.includes(picked.path) || catalog.implicitRoots.includes(picked.path)) {
         return;
       }
-      await save(policyFor(catalog, [...catalog.roots, picked.path]));
+      const next = { ...catalog, roots: [...catalog.roots, picked.path] };
+      await save(policyFor(next), next);
     } catch (err) {
       setError(parseIpcError(err).summary);
     }
   };
 
   const removeFolder = (path: string) => {
-    void save(
-      policyFor(
-        catalog,
-        catalog.roots.filter((root) => root !== path),
-      ),
-    );
+    const next = { ...catalog, roots: catalog.roots.filter((root) => root !== path) };
+    void save(policyFor(next), next);
   };
 
   const guidelines = catalog.entries.filter((entry) => entry.kind === 'guideline');
@@ -133,9 +119,11 @@ export function SkillsPane({ remote }: { remote: boolean }) {
             {catalog.roots.map((path) => (
               <li key={path}>
                 <code>{path}</code>
-                <button type="button" onClick={() => removeFolder(path)} disabled={busy}>
-                  Remove
-                </button>
+                {remote ? null : (
+                  <button type="button" onClick={() => removeFolder(path)} disabled={busy}>
+                    Remove
+                  </button>
+                )}
               </li>
             ))}
           </ul>

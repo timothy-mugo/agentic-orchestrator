@@ -1455,13 +1455,13 @@ func TestProviderFxModules_NilReturnsDefaultSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("providerFxModules(nil) error = %v", err)
 	}
-	if len(modules) != 3 {
-		t.Errorf("expected 3 modules for nil input (claude+codex+opencode), got %d", len(modules))
+	if len(modules) != 4 {
+		t.Errorf("expected 4 modules for nil input (claude+codex+opencode+cursor), got %d", len(modules))
 	}
 }
 
 func TestProviderFxModules_SingleProvider(t *testing.T) {
-	for _, name := range []string{providerNameClaude, providerNameCodex, providerNameOpencode} {
+	for _, name := range []string{providerNameClaude, providerNameCodex, providerNameOpencode, providerNameCursor} {
 		t.Run(name, func(t *testing.T) {
 			modules, err := providerFxModules([]string{name})
 			if err != nil {

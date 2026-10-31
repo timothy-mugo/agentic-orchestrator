@@ -40,6 +40,7 @@ import (
 	claude "github.com/doordash-oss/agentic-orchestrator/internal/llm/claude"
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm/clirun"
 	codex "github.com/doordash-oss/agentic-orchestrator/internal/llm/codex"
+	"github.com/doordash-oss/agentic-orchestrator/internal/llm/cursor"
 	opencode "github.com/doordash-oss/agentic-orchestrator/internal/llm/opencode"
 	"github.com/doordash-oss/agentic-orchestrator/internal/observe"
 	"github.com/doordash-oss/agentic-orchestrator/internal/orchestrator"
@@ -76,6 +77,7 @@ const (
 	providerNameClaude   = "claude"
 	providerNameCodex    = "codex"
 	providerNameOpencode = "opencode"
+	providerNameCursor   = "cursor"
 
 	modelNameSonnet = "sonnet"
 
@@ -550,7 +552,7 @@ Server flags (use with 'agentico server'):
   --config <path>                  Config file path (default: ~/.agentic-orchestrator/config.yaml)
   --state-dir <path>               State directory path (default: ~/.agentic-orchestrator/features)
   --providers <list>               Comma-separated provider list (default: all)
-                                   Available: claude, codex, opencode
+                                   Available: claude, codex, opencode, cursor
   --refresh-models                 Refresh provider model catalogs before starting the server
   --listen [host:]port             Bind address (default: ephemeral 127.0.0.1 port).
                                    Wildcards (0.0.0.0, ::) expose the server on the
@@ -1293,7 +1295,7 @@ func scanStartupRecovery(ctx context.Context, orch *orchestrator.Orchestrator, s
 
 // knownProviderNames is the fixed set of names accepted by --providers.
 func knownProviderNames() []string {
-	return []string{providerNameClaude, providerNameCodex, providerNameOpencode}
+	return []string{providerNameClaude, providerNameCodex, providerNameOpencode, providerNameCursor}
 }
 
 // normalizeProviderNames validates/trims enabled against knownProviderNames,
@@ -2143,8 +2145,9 @@ func reconcileModelDefaults(cfg *config.Config, registry *llm.Registry, configPa
 // providerFxModules returns the fx modules for the requested providers.
 //
 // When enabled is non-nil, exactly the named providers are registered (the
-// explicit `--providers` opt-in, which accepts claude, codex, and opencode in
-// any order). When enabled is nil, the default set is claude+codex+opencode:
+// explicit `--providers` opt-in, which accepts claude, codex, opencode, and
+// cursor in any order). When enabled is nil, the default set is
+// claude+codex+opencode+cursor:
 // OpenCode is a normal default provider that participates in readiness checks,
 // catalog discovery, provider-neutral defaults, and the setup UI exactly like
 // the others. A missing, unready, or too-old OpenCode is filtered out downstream
@@ -2158,6 +2161,7 @@ func providerFxModules(enabled []string) ([]fx.Option, error) {
 		providerNameClaude:   claude.Module,
 		providerNameCodex:    codex.Module,
 		providerNameOpencode: opencode.Module,
+		providerNameCursor:   cursor.Module,
 	}
 
 	names := normalizeProviderNames(enabled, true, nil)

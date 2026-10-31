@@ -34,7 +34,7 @@ func TestStartupCopyListsOpenCodeAsSupportedProvider(t *testing.T) {
 	printUsage(&usage)
 	for _, want := range []string{
 		"--providers",
-		"Available: claude, codex, opencode",
+		"Available: claude, codex, opencode, cursor",
 	} {
 		if !strings.Contains(usage.String(), want) {
 			t.Errorf("usage text missing %q:\n%s", want, usage.String())
@@ -71,8 +71,8 @@ func TestProviderFxModules_DefaultIncludesOpenCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("providerFxModules(nil) error = %v", err)
 	}
-	if got := len(modules); got != 3 {
-		t.Fatalf("providerFxModules(nil) = %d modules, want 3 (claude+codex+opencode)", got)
+	if got := len(modules); got != 4 {
+		t.Fatalf("providerFxModules(nil) = %d modules, want 4 (claude+codex+opencode+cursor)", got)
 	}
 }
 

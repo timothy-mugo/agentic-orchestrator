@@ -76,10 +76,10 @@ test('packaged real-server start, semantic watch, history, and authoritative sto
     await expect.poll(() => retainedCockpit!.evaluate((node) => node.isConnected)).toBe(false);
     await expect(cockpit).toBeHidden();
     // The feature's sidebar row is its summary away from the cockpit: the
-    // durably ready, unstarted feature sits At rest with its status as the
-    // sub-line.
+    // durably ready, unstarted feature sits under signal-lab with its status
+    // as the sub-line.
     const featureRow = handle.page
-      .getByRole('group', { name: 'At rest' })
+      .getByRole('group', { name: 'signal-lab' })
       .getByRole('option', { name: /Packaged Signal Journey/ });
     await expect(featureRow.locator('.sidebar__row-subline')).toHaveText('Created', {
       timeout: 30_000,
@@ -244,15 +244,17 @@ test('packaged real-server start, semantic watch, history, and authoritative sto
     ).toBeVisible();
 
     await handle.page.getByRole('option', { name: 'Supervisor', exact: true }).click();
-    // Away from the cockpit the sidebar row still lists the feature, and it
-    // has left the Running lane along with the run.
-    const signalRow = handle.page.getByRole('option', { name: /Packaged Signal Journey/ });
+    // Away from the cockpit the sidebar row still lists the feature under
+    // signal-lab, and the running mark leaves with the run.
+    const signalRow = handle.page
+      .getByRole('group', { name: 'signal-lab' })
+      .getByRole('option', { name: /Packaged Signal Journey/ });
     await expect(signalRow).toBeVisible();
-    await expect(
-      handle.page
-        .getByRole('group', { name: 'Running' })
-        .getByRole('option', { name: /Packaged Signal Journey/ }),
-    ).toHaveCount(0, { timeout: 30_000 });
+    await expect(signalRow.locator('.sidebar__row-glyph')).not.toHaveAttribute(
+      'data-tone',
+      'progress',
+      { timeout: 30_000 },
+    );
     await evidenceShot(handle, 'cockpit-terminal-dashboard-light-narrow');
 
     const discovery = readDiscovery(world);

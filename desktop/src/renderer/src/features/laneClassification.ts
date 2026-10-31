@@ -15,11 +15,12 @@ limitations under the License.
 */
 
 /**
- * Pure lane classification for the Bench: every feature maps to exactly one
- * of six lanes so the sidebar can group and count
- * features without re-deriving dashboard rules. Builds strictly on top of
- * featureView.ts's dashboard classification — it never duplicates the
- * intervention/active status logic that already lives there.
+ * Pure lane classification for a sidebar row's status. Every feature maps
+ * to exactly one of six lanes so the row can choose its glyph, sub-line,
+ * and progress pip without re-deriving dashboard rules. The sidebar groups
+ * rows by project folder; these lanes are not sections. Builds strictly on
+ * top of featureView.ts's dashboard classification — it never duplicates
+ * the intervention/active status logic that already lives there.
  */
 import type { FeatureSnapshot } from '../../../shared/ipc';
 import { ACTIVE_STATUSES, dashboardState, orderDashboardFeatures } from './featureView';

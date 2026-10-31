@@ -17,7 +17,7 @@ limitations under the License.
 /**
  * Bench shell visual-evidence capture: drives the packaged app to produce
  * the contract screenshots for the sidebar/toolbar shell (a populated
- * five-lane sidebar, light theme, the Supervisor home page under its pinned
+ * project-folder sidebar, light theme, the Supervisor home page under its pinned
  * first row, the trailing inspector split-view pane, the collapsed sidebar,
  * and the 400x480 minimum with auto-collapse).
  *
@@ -58,7 +58,7 @@ test.skip(
   'evidence-only journey: contractEvidenceShot writes nothing without AGENTICO_EVIDENCE_DIR',
 );
 
-test('Bench shell evidence: five-lane sidebar, themes, inspector, collapse, minimum size', async ({}, testInfo) => {
+test('Bench shell evidence: project sidebar, themes, inspector, collapse, minimum size', async ({}, testInfo) => {
   const world = createWorld('shell-evidence', {
     auth: { loggedIn: true, authMethod: 'oauth', email: 'e2e@example.invalid' },
     presetWorkspaceRoot: true,
@@ -73,8 +73,8 @@ test('Bench shell evidence: five-lane sidebar, themes, inspector, collapse, mini
     });
     await expectSupervisorHome(handle);
 
-    // Create five features via the real form — every one settles into the
-    // "At rest" lane once setup completes.
+    // Create five features via the real form — every one settles under
+    // evidence-lab once setup completes.
     const names = [
       'Evidence Selected',
       'Evidence Running',
@@ -115,10 +115,10 @@ test('Bench shell evidence: five-lane sidebar, themes, inspector, collapse, mini
     // Note: seeding an ACTIVE_STATUSES value (e.g. "Implementing") does not
     // survive a relaunch — the server's own startup reconciliation detects
     // there is no live process actually running that phase and downgrades
-    // it to "Interrupted" (still correctly bucketed under "Waiting on
-    // you", alongside the explicit NeedUserInput fixture below). That is
-    // sufficient to populate four of the five lanes without needing to
-    // drive a real, long-running pipeline pass end to end.
+    // it to "Interrupted" (a waiting row, alongside the explicit
+    // NeedUserInput fixture below). The sidebar lists every feature under
+    // evidence-lab either way; the seeded status is what each row's glyph
+    // and sub-line read.
     setFeatureStatus(world.stateDir, ids['Evidence Running']!, 'Implementing');
     setFeatureStatus(world.stateDir, ids['Evidence Published']!, 'Published');
     setFeatureStatus(world.stateDir, ids['Evidence Done']!, 'Done');
@@ -130,24 +130,22 @@ test('Bench shell evidence: five-lane sidebar, themes, inspector, collapse, mini
       timeout: 60_000,
     });
     // The relaunch restores the last selected feature (the fifth created);
-    // going home first keeps the lane sanity checks below on a known page.
+    // going home first keeps the sidebar checks below on a known page.
     await supervisorRow(handle).click();
     await expectSupervisorHome(handle);
 
-    // Sanity: confirm at least three lanes are now populated before
-    // spending time on screenshots. The "Done" lane's <details> disclosure
-    // defaults closed (WorkspaceShell's expandedLanes initial state), so
-    // expand it explicitly before asserting its contents are visible.
-    await expect(handle.page.getByRole('group', { name: 'Waiting on you' })).toBeVisible();
-    await expect(handle.page.getByRole('group', { name: 'Published' })).toBeVisible();
-    await handle.page.locator('summary.sidebar__lane-summary', { hasText: 'Done' }).click();
-    await expect(handle.page.getByRole('group', { name: 'Done' })).toBeVisible();
-    await expect(handle.page.getByRole('group', { name: 'At rest' })).toBeVisible();
+    // Sanity: the project folder is open and every feature is listed before
+    // spending time on screenshots.
+    const project = handle.page.getByRole('group', { name: 'evidence-lab' });
+    await expect(project).toBeVisible();
+    for (const name of names) {
+      await expect(project.getByText(name, { exact: true })).toBeVisible();
+    }
 
     await setWindowSize(handle, 1440, 900);
     await setTheme(handle, 'dark');
 
-    // 1. Feature selected, dark theme, populated five-lane sidebar, toolbar
+    // 1. Feature selected, dark theme, populated project sidebar, toolbar
     //    with bell/overflow/inspector-toggle.
     const selectedRow = handle.page.getByRole('option', { name: /Evidence Selected/ });
     await selectedRow.click();
@@ -161,7 +159,7 @@ test('Bench shell evidence: five-lane sidebar, themes, inspector, collapse, mini
     await expect(handle.page.getByRole('button', { name: 'New feature' })).toBeVisible();
     await contractEvidenceShot(
       handle,
-      'shell-with-a-feature-selected-populated-five-lane-sidebar-toolbar-with-bell-over-1440x900',
+      'shell-with-a-feature-selected-populated-project-sidebar-toolbar-with-bell-over-1440x900',
       1440,
       900,
       'dark',

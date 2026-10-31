@@ -25,6 +25,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/guidelinedef"
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm"
 	"github.com/doordash-oss/agentic-orchestrator/internal/observe"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 	"github.com/doordash-oss/agentic-orchestrator/internal/skilldef"
 	"github.com/doordash-oss/agentic-orchestrator/internal/utilskill"
 )
@@ -180,13 +181,13 @@ func classifyContextRead(filePath, kbBaseDir, skillsDir, guidelinesDir string) (
 // Centralized so all phase-specific prompt builders share one source of
 // truth for which orientation surfaces fire and how Skills / Guidelines
 // are resolved.
-func buildPreflightInput(phase feature.Phase, skillsDir string, kbInfos []KBInfo, guidelinesDir string, requiredSkillNames ...string) prompts.PreflightInput {
+func buildPreflightInput(phase feature.Phase, skillsDir string, kbInfos []KBInfo, guidelinesDir string, filter skillcatalog.Filter, requiredSkillNames ...string) prompts.PreflightInput {
 	kbViews := make([]prompts.KBView, 0, len(kbInfos))
 	for _, kb := range kbInfos {
 		kbViews = append(kbViews, prompts.KBView{Name: kb.Name, IndexPath: kb.IndexPath, RootDir: kb.RootDir})
 	}
-	skillViews := resolveAdditionalSkills(phase, skillsDir, requiredSkillNames...)
-	guidelineViews := resolveGuidelineViews(guidelinesDir)
+	skillViews := resolveAdditionalSkills(phase, skillsDir, filter, requiredSkillNames...)
+	guidelineViews := resolveGuidelineViews(guidelinesDir, filter)
 	return prompts.PreflightInput{
 		KBInfos:       kbViews,
 		Guidelines:    guidelineViews,
@@ -206,7 +207,7 @@ func buildPreflightInput(phase feature.Phase, skillsDir string, kbInfos []KBInfo
 // the agent does not have to guess directory names — each language's
 // top-level index.md is presented as an absolute path the agent can Read
 // directly when the language is relevant to the target repository.
-func resolveGuidelineViews(guidelinesDir string) []prompts.GuidelineView {
+func resolveGuidelineViews(guidelinesDir string, filter skillcatalog.Filter) []prompts.GuidelineView {
 	if guidelinesDir == "" {
 		return nil
 	}
@@ -216,6 +217,9 @@ func resolveGuidelineViews(guidelinesDir string) []prompts.GuidelineView {
 	}
 	names := make([]string, 0, len(defs))
 	for name := range defs {
+		if !filter.AllowsGuideline(name) {
+			continue
+		}
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -235,8 +239,8 @@ func resolveGuidelineViews(guidelinesDir string) []prompts.GuidelineView {
 // excluding skills that the caller promotes to mandatory guidance.
 // Returns nil when skillsDir is empty (no skill paths to advertise) or
 // when the phase has no registered utility skills.
-func resolveAdditionalSkills(phase feature.Phase, skillsDir string, excludedNames ...string) []prompts.SkillView {
-	if skillsDir == "" {
+func resolveAdditionalSkills(phase feature.Phase, skillsDir string, filter skillcatalog.Filter, excludedNames ...string) []prompts.SkillView {
+	if skillsDir == "" && len(filter.External) == 0 {
 		return nil
 	}
 	names := utilskill.ForPhase(phase)
@@ -253,7 +257,34 @@ func resolveAdditionalSkills(phase feature.Phase, skillsDir string, excludedName
 		}
 		names = filtered
 	}
-	return resolveSkillViews(names, skillsDir)
+	if filter.Active {
+		kept := names[:0]
+		for _, name := range names {
+			if filter.AllowsSkill(name) {
+				kept = append(kept, name)
+			}
+		}
+		names = kept
+	}
+	views := resolveSkillViews(names, skillsDir)
+	for _, skill := range filter.External {
+		views = append(views, prompts.SkillView{
+			Name:        skill.Name,
+			Description: tableCell(skill.Description),
+			Topics:      tableCell(skill.Topics),
+			Path:        skill.Path,
+		})
+	}
+	if len(views) == 0 {
+		return nil
+	}
+	return views
+}
+
+func tableCell(value string) string {
+	value = strings.ReplaceAll(value, "\n", " ")
+	value = strings.ReplaceAll(value, "|", "/")
+	return strings.TrimSpace(value)
 }
 
 // resolveSkillViews resolves named embedded skills into prompt rows.

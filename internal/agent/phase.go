@@ -31,6 +31,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/observe"
 	"github.com/doordash-oss/agentic-orchestrator/internal/permission"
 	"github.com/doordash-oss/agentic-orchestrator/internal/ports"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 )
 
 // PhaseRunner handles launching agent sessions for each feature phase.
@@ -90,6 +91,15 @@ type PhaseRunner struct {
 // askingQuestionsClauseForModel returns the provider's AskingQuestionsClause
 // for the given model via the registry. Falls back to an empty string if the
 // registry is nil or the model cannot be resolved to a provider.
+// skillFilter resolves the settings switches for the next prompt.
+// A runner without config leaves the prompt unchanged.
+func (pr *PhaseRunner) skillFilter() skillcatalog.Filter {
+	if pr == nil || pr.Config == nil {
+		return skillcatalog.Filter{}
+	}
+	return skillcatalog.Resolve(pr.Config.Skills, pr.SkillsDir, pr.GuidelinesDir, skillcatalog.DefaultUserSkillsDir()).Filter()
+}
+
 func (pr *PhaseRunner) askingQuestionsClauseForModel(model string) string {
 	if pr.Registry == nil {
 		return ""
@@ -293,6 +303,7 @@ func (pr *PhaseRunner) runInteractivePhase(f *feature.Feature, cfg interactivePh
 		KBInfos:        cfg.KBInfos,
 		AskingClause:   pr.askingQuestionsClauseForModel(phaseModel),
 		CompletionTool: pr.completionToolForModel(phaseModel),
+		SkillFilter:    pr.skillFilter(),
 	})
 	sessionID := fmt.Sprintf("%s%s", f.ID, cfg.SessionSuffix)
 
@@ -585,6 +596,7 @@ func (pr *PhaseRunner) runKBSession(f *feature.Feature, repo feature.FeatureRepo
 		GuidelinesDir:  pr.GuidelinesDir,
 		AskingClause:   pr.askingQuestionsClauseForModel(kbModel),
 		CompletionTool: pr.completionToolForModel(kbModel),
+		SkillFilter:    pr.skillFilter(),
 	})
 	sessionID := buildKBSessionID(f.ID, repo.Name)
 
@@ -775,6 +787,7 @@ func (pr *PhaseRunner) planLoopConfig(f *feature.Feature, maxAttempts int, qaFil
 		ValidatorEffortSource:        validatorEffortSource,
 		SkillsDir:                    pr.SkillsDir,
 		GuidelinesDir:                pr.GuidelinesDir,
+		SkillFilter:                  pr.skillFilter(),
 		Observer:                     pr.Observer,
 	}
 }
@@ -889,6 +902,7 @@ func (pr *PhaseRunner) multiRepoOrchestratorConfig(f *feature.Feature, passRole 
 		ReviewEffortSource:         reviewEffortSource,
 		SkillsDir:                  pr.SkillsDir,
 		GuidelinesDir:              pr.GuidelinesDir,
+		SkillFilter:                pr.skillFilter(),
 		Observer:                   pr.Observer,
 		OnVerificationProgress:     pr.OnVerificationProgress,
 		RoundCommitHook:            pr.RoundCommitHook,
@@ -1330,6 +1344,10 @@ func (pr *PhaseRunner) BuildSession(opts BuildSessionOpts) (cmd []string, env []
 	if pr.GuidelinesDir != "" {
 		opts.AdditionalDirs = append(opts.AdditionalDirs, pr.GuidelinesDir)
 		readOnlyContextDirs = append(readOnlyContextDirs, pr.GuidelinesDir)
+	}
+	for _, dir := range pr.skillFilter().Dirs() {
+		opts.AdditionalDirs = append(opts.AdditionalDirs, dir)
+		readOnlyContextDirs = append(readOnlyContextDirs, dir)
 	}
 
 	writableRoots := append([]string(nil), opts.WritableRoots...)

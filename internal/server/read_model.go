@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -37,6 +38,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm/askuser"
 	"github.com/doordash-oss/agentic-orchestrator/internal/permission"
 	"github.com/doordash-oss/agentic-orchestrator/internal/ports"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 	"github.com/doordash-oss/agentic-orchestrator/internal/supervisor"
 	"github.com/doordash-oss/agentic-orchestrator/internal/workadmission"
 )
@@ -1211,9 +1213,41 @@ func (h *apiHandler) handleRuntimeConfig(w http.ResponseWriter, r *http.Request)
 			OTelEnabled:     cfg.Observability.OTelEnabled,
 			OTelServiceName: cfg.Observability.OTelServiceName,
 		},
-		Providers: providers,
+		Providers:    providers,
+		SkillCatalog: skillCatalogDTO(cfg, h.runtime.RuntimeDir),
 	}
 	h.writeRevisionedResponse(w, r, resp, func(meta ResponseMeta) any { resp.Meta = meta; return resp })
+}
+
+func skillCatalogDTO(cfg *config.Config, runtimeDir string) SkillCatalog {
+	if cfg == nil {
+		cfg = config.NewDefault()
+	}
+	skillsDir := ""
+	guidelinesDir := ""
+	if runtimeDir != "" {
+		skillsDir = filepath.Join(runtimeDir, "skills")
+		guidelinesDir = filepath.Join(runtimeDir, "guidelines")
+	}
+	cat := skillcatalog.Resolve(cfg.Skills, skillsDir, guidelinesDir, skillcatalog.DefaultUserSkillsDir())
+	entries := make([]SkillCatalogEntry, 0, len(cat.Entries))
+	for _, entry := range cat.Entries {
+		entries = append(entries, SkillCatalogEntry{
+			ID:          entry.ID,
+			Name:        entry.Name,
+			Description: entry.Description,
+			Kind:        entry.Kind,
+			Origin:      entry.Origin,
+			Path:        entry.Path,
+			Enabled:     entry.Enabled,
+			Toggleable:  entry.Toggleable,
+		})
+	}
+	return SkillCatalog{
+		Roots:         append([]string(nil), cat.Roots...),
+		ImplicitRoots: append([]string(nil), cat.ImplicitRoots...),
+		Entries:       entries,
+	}
 }
 
 func (h *apiHandler) handleFeatureConfig(w http.ResponseWriter, r *http.Request, featureID string) {

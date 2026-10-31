@@ -4039,6 +4039,8 @@ components:
               type: array
               items:
                 type: string
+            skill_catalog:
+              $ref: "#/components/schemas/SkillCatalog"
     ModelCatalogResponse:
       allOf:
         - $ref: "#/components/schemas/JSONResponse"
@@ -5302,6 +5304,42 @@ components:
       properties:
         mute_feature_input:
           type: boolean
+    SkillCatalogEntry:
+      type: object
+      required: [id, name, description, kind, origin, path, enabled, toggleable]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        kind:
+          type: string
+        origin:
+          type: string
+        path:
+          type: string
+        enabled:
+          type: boolean
+        toggleable:
+          type: boolean
+    SkillCatalog:
+      type: object
+      required: [entries]
+      properties:
+        roots:
+          type: array
+          items:
+            type: string
+        implicit_roots:
+          type: array
+          items:
+            type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillCatalogEntry"
     Observability:
       type: object
       required: [events, otel_enabled]

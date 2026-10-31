@@ -669,6 +669,7 @@ export type SettingsPaneLabel =
   | 'Notifications'
   | 'Diagnostics'
   | 'Advanced'
+  | 'Skills'
   | 'Workspace defaults';
 
 /**

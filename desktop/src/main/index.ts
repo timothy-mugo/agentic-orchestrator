@@ -1532,6 +1532,8 @@ if (!hasSingleInstanceLock) {
       getReadiness: () => setup.getReadiness(),
       refreshReadiness: () => setup.refreshReadiness(),
       pickWorkspaceDirectory: () => setup.pickWorkspaceDirectory(),
+      getSkillCatalog: () => setup.getSkillCatalog(),
+      updateSkillPolicy: (policy) => setup.updateSkillPolicy(policy),
       addWorkspaceRoot: (rootPath) => setup.addWorkspaceRoot(rootPath),
       removeWorkspaceRoot: (rootPath) => setup.removeWorkspaceRoot(rootPath),
       reorderWorkspaceRoots: (paths) => setup.reorderWorkspaceRoots(paths),

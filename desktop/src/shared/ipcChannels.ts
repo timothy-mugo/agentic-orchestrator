@@ -37,6 +37,8 @@ export const IPC_CHANNELS = {
   getReadiness: 'agentico:readiness:get',
   refreshReadiness: 'agentico:readiness:refresh',
   pickWorkspaceDirectory: 'agentico:workspace:pick-directory',
+  getSkillCatalog: 'agentico:skills:get-catalog',
+  updateSkillPolicy: 'agentico:skills:update-policy',
   addWorkspaceRoot: 'agentico:workspace:add-root',
   removeWorkspaceRoot: 'agentico:workspace:remove-root',
   reorderWorkspaceRoots: 'agentico:workspace:reorder-roots',

@@ -110,9 +110,26 @@ export const FeatureConfigResponseSchema = z.object({
   defaults: ServerFeatureConfigSchema,
   publishability: z.object({ manual_publish: z.boolean() }),
 });
+export const SkillCatalogWireSchema = z.object({
+  roots: z.array(z.string()).optional(),
+  implicit_roots: z.array(z.string()).optional(),
+  entries: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string(),
+      kind: z.string(),
+      origin: z.string(),
+      path: z.string(),
+      enabled: z.boolean(),
+      toggleable: z.boolean(),
+    }),
+  ),
+});
 export const RuntimeConfigResponseSchema = z.object({
   api_version: z.string(),
   workspace_roots: z.array(z.string()).optional(),
+  skill_catalog: SkillCatalogWireSchema.optional(),
   feature_defaults: z.object({
     models: ServerModelDefaultsSchema,
     effort: ServerEffortDefaultsSchema.optional(),

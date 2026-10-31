@@ -34,6 +34,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/observe"
 	"github.com/doordash-oss/agentic-orchestrator/internal/permission"
 	"github.com/doordash-oss/agentic-orchestrator/internal/ports"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 )
 
 // ImplementConfig holds configuration for the implementation loop.
@@ -140,6 +141,8 @@ type ImplementConfig struct {
 
 	// GuidelinesDir is the path to the reconciled guidelines directory on disk.
 	GuidelinesDir string
+	// SkillFilter is the settings switch list for this session's prompt.
+	SkillFilter skillcatalog.Filter
 
 	// OnReviewingChange is called when the implementation loop enters or exits
 	// the review gate. This allows the orchestrator to update per-repo status
@@ -513,6 +516,7 @@ func runImplementationLoop(cfg ImplementConfig, sm ports.SessionManager) (result
 				AskingClause:   sessionConfig.AskingClause,
 				CompletionTool: sessionConfig.CompletionTool,
 				Frontend:       cfg.Feature != nil && cfg.Feature.RoadmapPhaseFrontend(cfg.Feature.CurrentRoadmapPhase),
+				SkillFilter:    cfg.SkillFilter,
 			})
 
 			// Derive repo name for permission scoping. cfg.RepoName is empty for

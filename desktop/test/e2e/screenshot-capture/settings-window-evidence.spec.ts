@@ -39,15 +39,17 @@ const LIST_MATERIAL = {
 const DEFAULT_WIDTH = 900;
 const DEFAULT_HEIGHT = 640;
 
-/** The eight panes, in the order the source list shows them. */
+/** The panes, in the order the source list shows them. */
 const PANE_LABELS = [
   'Workspace roots',
+  'Servers',
   'Providers',
   'Appearance',
   'Updates',
   'Notifications',
   'Diagnostics',
   'Advanced',
+  'Skills',
   'Workspace defaults',
 ] as const;
 

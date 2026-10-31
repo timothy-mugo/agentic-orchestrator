@@ -4533,6 +4533,7 @@ type RuntimeConfigResponse struct {
 	Providers       []string           `json:"providers"`
 	Repos           []ConfigRepo       `json:"repos"`
 	Runtime         RuntimeIdentity    `json:"runtime"`
+	SkillCatalog    SkillCatalog       `json:"skill_catalog,omitempty"`
 	WorkspaceRoots  []string           `json:"workspace_roots,omitempty"`
 }
 
@@ -4713,6 +4714,25 @@ type SetupTask struct {
 	StartedAt        *time.Time `json:"started_at,omitempty"`
 	Status           string     `json:"status"`
 	UseCurrentBranch bool       `json:"use_current_branch,omitempty"`
+}
+
+// SkillCatalog defines model for SkillCatalog.
+type SkillCatalog struct {
+	Entries       []SkillCatalogEntry `json:"entries"`
+	ImplicitRoots []string            `json:"implicit_roots,omitempty"`
+	Roots         []string            `json:"roots,omitempty"`
+}
+
+// SkillCatalogEntry defines model for SkillCatalogEntry.
+type SkillCatalogEntry struct {
+	Description string `json:"description"`
+	Enabled     bool   `json:"enabled"`
+	ID          string `json:"id"`
+	Kind        string `json:"kind"`
+	Name        string `json:"name"`
+	Origin      string `json:"origin"`
+	Path        string `json:"path"`
+	Toggleable  bool   `json:"toggleable"`
 }
 
 // StageUploadResponse defines model for StageUploadResponse.

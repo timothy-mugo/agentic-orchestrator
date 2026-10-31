@@ -2035,6 +2035,7 @@ export interface components {
             notifications: components["schemas"]["NotificationConfig"];
             observability: components["schemas"]["Observability"];
             providers: string[];
+            skill_catalog?: components["schemas"]["SkillCatalog"];
         };
         ModelCatalogResponse: components["schemas"]["JSONResponse"] & {
             provider_order: string[];
@@ -2550,6 +2551,21 @@ export interface components {
         };
         NotificationConfig: {
             mute_feature_input: boolean;
+        };
+        SkillCatalogEntry: {
+            id: string;
+            name: string;
+            description: string;
+            kind: string;
+            origin: string;
+            path: string;
+            enabled: boolean;
+            toggleable: boolean;
+        };
+        SkillCatalog: {
+            roots?: string[];
+            implicit_roots?: string[];
+            entries: components["schemas"]["SkillCatalogEntry"][];
         };
         Observability: {
             events: boolean;

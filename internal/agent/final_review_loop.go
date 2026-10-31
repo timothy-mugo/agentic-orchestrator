@@ -617,6 +617,7 @@ func (s *featureFinalReviewLoopState) runFinalReviewAxis(ctx context.Context, it
 		Kind:                   ports.KindValidator,
 		Label:                  axis.Name,
 		Posture:                axis.ExecutionPosture,
+		SkillFilter:            cfg.SkillFilter,
 		OnRetry: func(_ int, err error) {
 			markMultiAxisValidatorRetrying(cfg.FeatureStore, cfg.Feature.ID, axis.Name, err)
 		},
@@ -731,6 +732,7 @@ func (s *featureFinalReviewLoopState) runFix(iteration int, iterDir, feedback st
 		KBInfos:        cfg.KBInfos,
 		AskingClause:   cfg.AskingClause,
 		CompletionTool: cfg.CompletionTool,
+		SkillFilter:    cfg.SkillFilter,
 	})
 
 	removeCompletionReceipt(iterDir)

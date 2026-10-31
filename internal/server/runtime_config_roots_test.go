@@ -63,6 +63,50 @@ func patchTrustedJSON(handler http.Handler, path string, body any) *httptest.Res
 	return w
 }
 
+func TestGetRuntimeConfigIncludesSkillCatalog(t *testing.T) {
+	t.Parallel()
+	recorder := &runtimeConfigRecorder{}
+	handler := newRuntimeConfigHandler(t, recorder)
+	req := httptest.NewRequest(http.MethodGet, apiPathConfigRuntime, nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	var body RuntimeConfigResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	var goGuideline bool
+	var implementLocked bool
+	for _, entry := range body.SkillCatalog.Entries {
+		if entry.ID == "guideline:go" && entry.Enabled && entry.Toggleable {
+			goGuideline = true
+		}
+		if entry.ID == "skill:implement" && entry.Enabled && !entry.Toggleable {
+			implementLocked = true
+		}
+	}
+	if !goGuideline || !implementLocked {
+		t.Fatalf("catalog missing expected rows: go=%v implement=%v count=%d", goGuideline, implementLocked, len(body.SkillCatalog.Entries))
+	}
+}
+
+func TestPatchRuntimeConfigRejectsMissingSkillFolder(t *testing.T) {
+	t.Parallel()
+	recorder := &runtimeConfigRecorder{}
+	handler := newRuntimeConfigHandler(t, recorder)
+	w := patchTrustedJSON(handler, apiPathConfigRuntime, map[string]any{
+		"skills": map[string]any{"roots": []string{filepath.Join(t.TempDir(), "missing")}},
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s; want 400", w.Code, w.Body.String())
+	}
+	if got := recorder.calls.Load(); got != 0 {
+		t.Fatalf("RuntimeConfig calls = %d; want none", got)
+	}
+}
+
 func TestPatchRuntimeConfigAcceptsValidWorkspaceRoots(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

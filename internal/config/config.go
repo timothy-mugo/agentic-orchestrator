@@ -30,13 +30,16 @@ type Config struct {
 	// It guides new defaults without replacing explicit defaults.models selections.
 	ModelRecommendations map[string][]string `yaml:"model_recommendations,omitempty"`
 
-	Defaults        DefaultsConfig            `yaml:"defaults"`
-	Repos           map[string]RepoConfig     `yaml:"repos"`
-	WorkspaceRoots  []string                  `yaml:"workspace_roots,omitempty"`
-	DiscoveredRepos map[string]RepoConfig     `yaml:"-"` // in-memory only, never persisted
-	Notifications   notificationConfig        `yaml:"notifications,omitempty"`
-	Observability   observabilityConfig       `yaml:"observability,omitempty"`
-	Providers       map[string]providerConfig `yaml:"providers,omitempty"`
+	Defaults        DefaultsConfig        `yaml:"defaults"`
+	Repos           map[string]RepoConfig `yaml:"repos"`
+	WorkspaceRoots  []string              `yaml:"workspace_roots,omitempty"`
+	DiscoveredRepos map[string]RepoConfig `yaml:"-"` // in-memory only, never persisted
+	Notifications   notificationConfig    `yaml:"notifications,omitempty"`
+	// Skills is the user's switch list for language guidelines, optional
+	// built-in skills, and skills discovered from folders on disk.
+	Skills        SkillsConfig              `yaml:"skills,omitempty"`
+	Observability observabilityConfig       `yaml:"observability,omitempty"`
+	Providers     map[string]providerConfig `yaml:"providers,omitempty"`
 	// Server holds startup-only settings for the headless server. They are
 	// read at launch and intentionally not part of the runtime-config REST
 	// surface.
@@ -118,6 +121,17 @@ func (o *observabilityConfig) UnmarshalYAML(value *yaml.Node) error {
 	o.parsed = true
 	type plain observabilityConfig
 	return value.Decode((*plain)(o))
+}
+
+// SkillsConfig is the persisted skill and guideline switch list.
+// Roots are extra folders to scan, beyond the default user skills folder.
+// Disabled turns off a shipped guideline or optional built-in skill.
+// Enabled turns on a skill discovered outside the binary.
+// Absent entries keep their default: shipped guidance on, discovered skills off.
+type SkillsConfig struct {
+	Roots    []string `yaml:"roots,omitempty" json:"roots,omitempty"`
+	Disabled []string `yaml:"disabled,omitempty" json:"disabled,omitempty"`
+	Enabled  []string `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 }
 
 type notificationConfig struct {

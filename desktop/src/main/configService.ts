@@ -322,11 +322,60 @@ function toModelCatalogue(data: z.output<typeof ModelCatalogResponseSchema>): Mo
       ),
     }));
   }
-  return {
+  return limitOpenCodeModels({
     providerOrder: data.provider_order ?? [],
     providerModels,
     phaseDefaults: toPhaseModels(data.phase_defaults ?? {}),
     phaseProviderModels: data.phase_provider_models ?? {},
     chatDefaultEffort: data.chat_default_effort ?? {},
+  });
+}
+
+/** OpenCode models already offered by Claude or Codex are omitted, and the rest stop at this count. */
+const OPENCODE_MODEL_LIMIT = 80;
+
+/**
+ * Drops OpenCode entries whose id or alias matches a Claude or Codex model,
+ * then keeps the first 80 that remain. Phase lists follow that same set.
+ * The comparison ignores provider path prefixes and context-window suffixes.
+ */
+function limitOpenCodeModels(catalogue: ModelCatalogue): ModelCatalogue {
+  const offered = new Set<string>();
+  for (const provider of ['claude', 'codex']) {
+    for (const model of catalogue.providerModels[provider] ?? []) {
+      for (const name of modelNames(model)) offered.add(name);
+    }
+  }
+  const opencode = catalogue.providerModels.opencode;
+  if (opencode === undefined) return catalogue;
+  const kept = opencode
+    .filter((model) => !modelNames(model).some((name) => offered.has(name)))
+    .slice(0, OPENCODE_MODEL_LIMIT);
+  const keptIds = new Set(kept.map((model) => model.id));
+  const phaseProviderModels: ModelCatalogue['phaseProviderModels'] = {};
+  for (const [phase, providers] of Object.entries(catalogue.phaseProviderModels)) {
+    phaseProviderModels[phase] = {};
+    for (const [provider, ids] of Object.entries(providers)) {
+      phaseProviderModels[phase]![provider] =
+        provider === 'opencode' ? ids.filter((id) => keptIds.has(id)) : ids;
+    }
+  }
+  return {
+    ...catalogue,
+    providerModels: { ...catalogue.providerModels, opencode: kept },
+    phaseProviderModels,
   };
+}
+
+function modelNames(model: { id: string; aliases?: readonly string[] }): string[] {
+  return [model.id, ...(model.aliases ?? [])].map(normalizeModelName).filter((name) => name !== '');
+}
+
+function normalizeModelName(value: string): string {
+  const stripped = value
+    .trim()
+    .toLowerCase()
+    .replace(/\[[^\]]*\]$/, '');
+  const slash = stripped.lastIndexOf('/');
+  return slash === -1 ? stripped : stripped.slice(slash + 1);
 }

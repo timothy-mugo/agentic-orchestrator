@@ -34,6 +34,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/observe"
 	"github.com/doordash-oss/agentic-orchestrator/internal/permission"
 	"github.com/doordash-oss/agentic-orchestrator/internal/ports"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -524,6 +525,7 @@ type planLoopConfig struct {
 
 	// GuidelinesDir is the path to the reconciled guidelines directory on disk.
 	GuidelinesDir string
+	SkillFilter   skillcatalog.Filter
 
 	// Observer is the observability facade for lifecycle events. Nil = no-op.
 	Observer *observe.Observer
@@ -692,6 +694,7 @@ func runSpecializedPlanValidationForArtifact(cfg planLoopConfig, sm ports.Sessio
 			EffortSource:           cfg.ValidatorEffortSource,
 			Kind:                   ports.KindValidator,
 			Label:                  domain.Name,
+			SkillFilter:            cfg.SkillFilter,
 			OnRetry: func(_ int, retryErr error) {
 				markMultiAxisValidatorRetrying(cfg.FeatureStore, cfg.Feature.ID, domain.Name, retryErr)
 			},
@@ -1635,6 +1638,7 @@ attemptLoop:
 				KBInfos:        cfg.KBInfos,
 				AskingClause:   cfg.AskingClause,
 				CompletionTool: cfg.CompletionTool,
+				SkillFilter:    cfg.SkillFilter,
 			})
 			pidDir := filepath.Join(cfg.StateDir, cfg.Feature.ID)
 

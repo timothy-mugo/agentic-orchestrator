@@ -34,6 +34,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/observe"
 	"github.com/doordash-oss/agentic-orchestrator/internal/permission"
 	"github.com/doordash-oss/agentic-orchestrator/internal/ports"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 )
 
 // OrchestratorConfig holds configuration for the multi-repo orchestrator.
@@ -124,6 +125,7 @@ type OrchestratorConfig struct {
 
 	// GuidelinesDir is the path to the reconciled guidelines directory on disk.
 	GuidelinesDir string
+	SkillFilter   skillcatalog.Filter
 
 	// Observer is the observability facade for lifecycle events. Nil = no-op.
 	Observer *observe.Observer

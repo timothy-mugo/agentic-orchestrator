@@ -1088,6 +1088,19 @@ func (h *apiHandler) handleRuntimeConfigRoute(w http.ResponseWriter, r *http.Req
 			if !validateEffortConfig(w, req.Defaults.Effort, models, h.registry) {
 				return false
 			}
+<<<<<<< HEAD
+=======
+			if req.Skills != nil {
+				current := h.configOrDefault().CloneSkills()
+				kept, fresh := skillcatalog.PartitionRoots(current.Roots, req.Skills.Roots)
+				cleaned, err := skillcatalog.CleanRoots(fresh)
+				if err != nil {
+					writeAPIError(w, http.StatusBadRequest, errcat.BadRequest, errcat.WithDiagnostics(err.Error()))
+					return false
+				}
+				req.Skills.Roots = append(kept, cleaned...)
+			}
+>>>>>>> d880c3a (Enhance Skill Management and Runtime Configuration)
 			return req.WorkspaceRoots == nil || validateWorkspaceRootPaths(w, *req.WorkspaceRoots)
 		}, func(req RuntimeConfigMutationRequest) (RuntimeConfigUpdateResponse, error) {
 			resp, err := h.mutations.RuntimeConfig(req)

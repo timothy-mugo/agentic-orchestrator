@@ -258,6 +258,18 @@ func TestSubagentProgressTracker_ForwardsProgress(t *testing.T) {
 	}
 }
 
+func TestClassifyContextReadIncludesExternalSkillDirs(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "systematic-debugging")
+	got, ok := classifyContextRead(filepath.Join(dir, "SKILL.md"), "", "", "", []string{dir})
+	if !ok || got != "skill" {
+		t.Fatalf("classify = %q, %v", got, ok)
+	}
+	sibling := dir + "-extra"
+	if _, ok := classifyContextRead(filepath.Join(sibling, "SKILL.md"), "", "", "", []string{dir}); ok {
+		t.Fatal("sibling directory was classified as a skill read")
+	}
+}
+
 func TestSubagentProgressTracker_NilObserverNoOp(t *testing.T) {
 	// Must not panic and must not install a callback when Observer is nil.
 	tracker := &subagentProgressTracker{Observer: nil}

@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/doordash-oss/agentic-orchestrator/internal/workspace"
 	"gopkg.in/yaml.v3"
@@ -30,6 +31,7 @@ type Config struct {
 	// It guides new defaults without replacing explicit defaults.models selections.
 	ModelRecommendations map[string][]string `yaml:"model_recommendations,omitempty"`
 
+<<<<<<< HEAD
 	Defaults        DefaultsConfig            `yaml:"defaults"`
 	Repos           map[string]RepoConfig     `yaml:"repos"`
 	WorkspaceRoots  []string                  `yaml:"workspace_roots,omitempty"`
@@ -37,6 +39,21 @@ type Config struct {
 	Notifications   notificationConfig        `yaml:"notifications,omitempty"`
 	Observability   observabilityConfig       `yaml:"observability,omitempty"`
 	Providers       map[string]providerConfig `yaml:"providers,omitempty"`
+=======
+	Defaults        DefaultsConfig        `yaml:"defaults"`
+	Repos           map[string]RepoConfig `yaml:"repos"`
+	WorkspaceRoots  []string              `yaml:"workspace_roots,omitempty"`
+	DiscoveredRepos map[string]RepoConfig `yaml:"-"` // in-memory only, never persisted
+	Notifications   notificationConfig    `yaml:"notifications,omitempty"`
+	// Skills is the user's switch list for language guidelines, optional
+	// built-in skills, and skills discovered from folders on disk.
+	// Readers and the config writer share skillsMu so a prompt can copy
+	// the list while a settings save replaces it.
+	Skills        SkillsConfig              `yaml:"skills,omitempty"`
+	skillsMu      *sync.Mutex               `yaml:"-"`
+	Observability observabilityConfig       `yaml:"observability,omitempty"`
+	Providers     map[string]providerConfig `yaml:"providers,omitempty"`
+>>>>>>> d880c3a (Enhance Skill Management and Runtime Configuration)
 	// Server holds startup-only settings for the headless server. They are
 	// read at launch and intentionally not part of the runtime-config REST
 	// surface.
@@ -301,7 +318,82 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+// skillsMuInit serializes the one-time mutex allocation. The mutex itself
+// lives on the config so copies of Config share the lock instead of copying it.
+var skillsMuInit sync.Mutex
+
+func (c *Config) skillsLock() *sync.Mutex {
+	skillsMuInit.Lock()
+	defer skillsMuInit.Unlock()
+	if c.skillsMu == nil {
+		c.skillsMu = &sync.Mutex{}
+	}
+	return c.skillsMu
+}
+
+// CloneSkills returns a copy of the skill switch list safe to read without
+// holding the config lock.
+func (c *Config) CloneSkills() SkillsConfig {
+	if c == nil {
+		return SkillsConfig{}
+	}
+	mu := c.skillsLock()
+	mu.Lock()
+	defer mu.Unlock()
+	return copySkills(c.Skills)
+}
+
+// Clone copies the config while holding the skill lock so the skill list
+// is not torn. The clone shares the skill lock with the original.
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+	mu := c.skillsLock()
+	mu.Lock()
+	defer mu.Unlock()
+	snapshot := *c
+	snapshot.Skills = copySkills(c.Skills)
+	return &snapshot
+}
+
+// CommitSkills stores next and writes the config file. The live list changes
+// only after the file write succeeds; a failed write leaves the previous list.
+func (c *Config) CommitSkills(path string, next SkillsConfig) error {
+	if c == nil {
+		return fmt.Errorf("saving config: nil config")
+	}
+	mu := c.skillsLock()
+	mu.Lock()
+	defer mu.Unlock()
+	prev := c.Skills
+	c.Skills = copySkills(next)
+	if err := writeConfig(path, c); err != nil {
+		c.Skills = prev
+		return err
+	}
+	return nil
+}
+
+func copySkills(in SkillsConfig) SkillsConfig {
+	return SkillsConfig{
+		Roots:    append([]string(nil), in.Roots...),
+		Disabled: append([]string(nil), in.Disabled...),
+		Enabled:  append([]string(nil), in.Enabled...),
+	}
+}
+
 func Save(path string, cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("saving config: nil config")
+	}
+	mu := cfg.skillsLock()
+	mu.Lock()
+	defer mu.Unlock()
+	return writeConfig(path, cfg)
+}
+
+func writeConfig(path string, cfg *Config) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}

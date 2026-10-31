@@ -90,6 +90,18 @@ type PhaseRunner struct {
 // askingQuestionsClauseForModel returns the provider's AskingQuestionsClause
 // for the given model via the registry. Falls back to an empty string if the
 // registry is nil or the model cannot be resolved to a provider.
+<<<<<<< HEAD
+=======
+// skillFilter resolves the settings switches for the next prompt.
+// A runner without config leaves the prompt unchanged.
+func (pr *PhaseRunner) skillFilter() skillcatalog.Filter {
+	if pr == nil || pr.Config == nil {
+		return skillcatalog.Filter{}
+	}
+	return skillcatalog.Resolve(pr.Config.CloneSkills(), pr.SkillsDir, pr.GuidelinesDir, skillcatalog.DefaultUserSkillsDir()).Filter()
+}
+
+>>>>>>> d880c3a (Enhance Skill Management and Runtime Configuration)
 func (pr *PhaseRunner) askingQuestionsClauseForModel(model string) string {
 	if pr.Registry == nil {
 		return ""
@@ -1345,12 +1357,9 @@ func (pr *PhaseRunner) BuildSession(opts BuildSessionOpts) (cmd []string, env []
 	readRoots := appendUniqueRoots(nil, opts.AdditionalDirs...)
 	readRoots = appendUniqueRoots(readRoots, opts.WorkDir)
 
-	// Command-level writable roots omit read-only context mounts unless the
-	// caller supplied an explicit writable-root list.
-	commandWritableRoots := writableRoots
-	if opts.WritableRoots == nil {
-		commandWritableRoots = subtractRoots(writableRoots, readOnlyContextDirs)
-	}
+	// Read-only context mounts stay out of the write surface even when the
+	// caller listed them, or a parent directory that contains them, as writable.
+	commandWritableRoots := subtractRoots(writableRoots, readOnlyContextDirs)
 
 	agentsJSON, err := agentsJSONForNames(opts.AgentNames)
 	if err != nil {
@@ -1409,7 +1418,7 @@ func (pr *PhaseRunner) BuildSession(opts BuildSessionOpts) (cmd []string, env []
 		WorkDir:              opts.WorkDir,
 		SystemPrompt:         opts.SystemPrompt,
 		InitialPrompt:        opts.Prompt,
-		WritableRoots:        writableRoots,
+		WritableRoots:        commandWritableRoots,
 		DSP:                  dangerouslySkipPermissions,
 		StateDir:             providerStateDir(pr.StateDir),
 		ResumeSessionID:      opts.ResumeSessionID,

@@ -265,4 +265,55 @@ describe('ConfigService effort routing', () => {
       { id: 'claude-new', displayName: 'Claude New', category: 'capable' },
     ]);
   });
+<<<<<<< HEAD
+=======
+
+  it('keeps at most 80 OpenCode models that Claude and Codex do not already offer', async () => {
+    const unique = Array.from({ length: 85 }, (_, index) => ({ id: `other/model-${index}` }));
+    const opencode = [
+      { id: 'github-copilot/claude-opus-5-5', aliases: ['opus'] },
+      { id: 'openai/gpt-6.1-sol[500K]' },
+      ...unique,
+    ];
+    const { service } = makeService(() => ({
+      status: 200,
+      body: {
+        api_version: 'v1',
+        provider_order: ['claude', 'codex', 'opencode'],
+        provider_models: {
+          claude: [{ id: 'opus', aliases: ['claude-opus-5-5'] }],
+          codex: [{ id: 'gpt-6.1-sol[872K]', aliases: ['gpt-6.1-sol'] }],
+          opencode,
+        },
+        phase_defaults: {
+          implementation: 'opencode:openai/gpt-6.1-sol[500K]',
+          review: 'opencode:other/model-84',
+          planning: 'claude:opus',
+        },
+        phase_provider_models: {
+          implementation: {
+            claude: ['opus'],
+            codex: ['gpt-6.1-sol[872K]'],
+            opencode: opencode.map((model) => model.id),
+          },
+          review: {
+            opencode: opencode.map((model) => model.id),
+          },
+        },
+      },
+    }));
+
+    const catalogue = await service.getModelCatalogue();
+    const kept = unique.slice(0, 80).map((model) => model.id);
+
+    expect(catalogue.providerModels.claude?.map((model) => model.id)).toEqual(['opus']);
+    expect(catalogue.providerModels.codex?.map((model) => model.id)).toEqual(['gpt-6.1-sol[872K]']);
+    expect(catalogue.providerModels.opencode?.map((model) => model.id)).toEqual(kept);
+    expect(catalogue.phaseProviderModels.implementation?.opencode).toEqual(kept);
+    expect(catalogue.phaseProviderModels.implementation?.claude).toEqual(['opus']);
+    expect(catalogue.phaseDefaults.implementation).toBe('codex:gpt-6.1-sol[872K]');
+    expect(catalogue.phaseDefaults.review).toBe('opencode:other/model-0');
+    expect(catalogue.phaseDefaults.planning).toBe('claude:opus');
+  });
+>>>>>>> d880c3a (Enhance Skill Management and Runtime Configuration)
 });

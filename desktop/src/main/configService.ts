@@ -328,5 +328,121 @@ function toModelCatalogue(data: z.output<typeof ModelCatalogResponseSchema>): Mo
     phaseDefaults: toPhaseModels(data.phase_defaults ?? {}),
     phaseProviderModels: data.phase_provider_models ?? {},
     chatDefaultEffort: data.chat_default_effort ?? {},
+<<<<<<< HEAD
+=======
+  });
+}
+
+/** OpenCode models already offered by Claude or Codex are omitted, and the rest stop at this count. */
+const OPENCODE_MODEL_LIMIT = 80;
+
+/**
+ * Drops OpenCode entries whose id or alias matches a Claude or Codex model,
+ * then keeps the first 80 that remain. Phase lists follow that same set.
+ * The comparison ignores provider path prefixes and context-window suffixes.
+ */
+function limitOpenCodeModels(catalogue: ModelCatalogue): ModelCatalogue {
+  const offered = new Set<string>();
+  for (const provider of ['claude', 'codex']) {
+    for (const model of catalogue.providerModels[provider] ?? []) {
+      for (const name of modelNames(model)) offered.add(name);
+    }
+  }
+  const opencode = catalogue.providerModels.opencode;
+  if (opencode === undefined) return catalogue;
+  const kept = opencode
+    .filter((model) => !modelNames(model).some((name) => offered.has(name)))
+    .slice(0, OPENCODE_MODEL_LIMIT);
+  const keptIds = new Set(kept.map((model) => model.id));
+  const phaseProviderModels: ModelCatalogue['phaseProviderModels'] = {};
+  for (const [phase, providers] of Object.entries(catalogue.phaseProviderModels)) {
+    phaseProviderModels[phase] = {};
+    for (const [provider, ids] of Object.entries(providers)) {
+      phaseProviderModels[phase]![provider] =
+        provider === 'opencode' ? ids.filter((id) => keptIds.has(id)) : ids;
+    }
+  }
+  const limited: ModelCatalogue = {
+    ...catalogue,
+    providerModels: { ...catalogue.providerModels, opencode: kept },
+    phaseProviderModels,
+>>>>>>> d880c3a (Enhance Skill Management and Runtime Configuration)
   };
+  return { ...limited, phaseDefaults: reconcilePhaseDefaults(limited) };
+}
+
+const PHASE_DEFAULT_KEYS = [
+  'inquiry',
+  'research',
+  'planning',
+  'implementation',
+  'review',
+  'utilities',
+  'kbBuild',
+  'automaticReview',
+] as const satisfies readonly (keyof ModelCatalogue['phaseDefaults'])[];
+
+const PHASE_DEFAULT_ROLE: Record<(typeof PHASE_DEFAULT_KEYS)[number], string> = {
+  inquiry: 'inquiry',
+  research: 'research',
+  planning: 'planning',
+  implementation: 'implementation',
+  review: 'review',
+  utilities: 'utilities',
+  kbBuild: 'kb_build',
+  automaticReview: 'automatic_review',
+};
+
+/** Points a phase default at a model that survived the OpenCode limit. */
+function reconcilePhaseDefaults(catalogue: ModelCatalogue): ModelCatalogue['phaseDefaults'] {
+  const phaseDefaults = { ...catalogue.phaseDefaults };
+  const multiple = catalogue.providerOrder.length > 1;
+  for (const key of PHASE_DEFAULT_KEYS) {
+    const value = phaseDefaults[key];
+    if (value === undefined || value === '') continue;
+    if (selectionStillOffered(catalogue, value)) continue;
+    const replacement = replacementForDroppedDefault(
+      catalogue,
+      value,
+      PHASE_DEFAULT_ROLE[key],
+      multiple,
+    );
+    if (replacement === undefined) delete phaseDefaults[key];
+    else phaseDefaults[key] = replacement;
+  }
+  return phaseDefaults;
+}
+
+function selectionStillOffered(catalogue: ModelCatalogue, value: string): boolean {
+  const { provider, id } = splitSelection(value);
+  const providers = provider === undefined ? Object.keys(catalogue.providerModels) : [provider];
+  return providers.some((name) =>
+    (catalogue.providerModels[name] ?? []).some(
+      (model) => model.id === id || (model.aliases ?? []).includes(id),
+    ),
+  );
+}
+
+function replacementForDroppedDefault(
+  catalogue: ModelCatalogue,
+  value: string,
+  role: string,
+  multiple: boolean,
+): string | undefined {
+  const normalized = normalizeModelName(splitSelection(value).id);
+  for (const provider of ['claude', 'codex']) {
+    for (const model of catalogue.providerModels[provider] ?? []) {
+      if (!modelNames(model).includes(normalized)) continue;
+      return multiple ? `${provider}:${model.id}` : model.id;
+    }
+  }
+  const first = catalogue.phaseProviderModels[role]?.opencode?.[0];
+  if (first === undefined) return undefined;
+  return multiple ? `opencode:${first}` : first;
+}
+
+function splitSelection(value: string): { provider?: string; id: string } {
+  const colon = value.indexOf(':');
+  if (colon === -1) return { id: value };
+  return { provider: value.slice(0, colon), id: value.slice(colon + 1) };
 }

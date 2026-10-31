@@ -1922,3 +1922,20 @@ func TestModelConfigIsEmpty(t *testing.T) {
 		}
 	}
 }
+
+func TestCommitSkillsRestoresTheLiveListWhenTheWriteFails(t *testing.T) {
+	cfg := NewDefault()
+	cfg.Skills = SkillsConfig{Enabled: []string{"external:keep"}}
+	blocker := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := cfg.CommitSkills(filepath.Join(blocker, "config.yaml"), SkillsConfig{Enabled: []string{"external:drop"}})
+	if err == nil {
+		t.Fatal("expected the config write to fail")
+	}
+	got := cfg.CloneSkills()
+	if len(got.Enabled) != 1 || got.Enabled[0] != "external:keep" {
+		t.Fatalf("skills = %+v, want the previous list", got)
+	}
+}

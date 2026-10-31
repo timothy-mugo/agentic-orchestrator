@@ -1216,6 +1216,40 @@ func (h *apiHandler) handleRuntimeConfig(w http.ResponseWriter, r *http.Request)
 	h.writeRevisionedResponse(w, r, resp, func(meta ResponseMeta) any { resp.Meta = meta; return resp })
 }
 
+<<<<<<< HEAD
+=======
+func skillCatalogDTO(cfg *config.Config, runtimeDir string) SkillCatalog {
+	if cfg == nil {
+		cfg = config.NewDefault()
+	}
+	skillsDir := ""
+	guidelinesDir := ""
+	if runtimeDir != "" {
+		skillsDir = filepath.Join(runtimeDir, "skills")
+		guidelinesDir = filepath.Join(runtimeDir, "guidelines")
+	}
+	cat := skillcatalog.Resolve(cfg.CloneSkills(), skillsDir, guidelinesDir, skillcatalog.DefaultUserSkillsDir())
+	entries := make([]SkillCatalogEntry, 0, len(cat.Entries))
+	for _, entry := range cat.Entries {
+		entries = append(entries, SkillCatalogEntry{
+			ID:          entry.ID,
+			Name:        entry.Name,
+			Description: entry.Description,
+			Kind:        entry.Kind,
+			Origin:      entry.Origin,
+			Path:        entry.Path,
+			Enabled:     entry.Enabled,
+			Toggleable:  entry.Toggleable,
+		})
+	}
+	return SkillCatalog{
+		Roots:         append([]string(nil), cat.Roots...),
+		ImplicitRoots: append([]string(nil), cat.ImplicitRoots...),
+		Entries:       entries,
+	}
+}
+
+>>>>>>> d880c3a (Enhance Skill Management and Runtime Configuration)
 func (h *apiHandler) handleFeatureConfig(w http.ResponseWriter, r *http.Request, featureID string) {
 	f, err := h.loadFeature(featureID)
 	if err != nil {
@@ -1419,7 +1453,7 @@ func runtimeConfigRepoSnapshot(cfg *config.Config) *config.Config {
 	if cfg == nil {
 		return config.NewDefault()
 	}
-	snapshot := *cfg
+	snapshot := *cfg.Clone()
 	snapshot.WorkspaceRoots = append([]string(nil), cfg.WorkspaceRoots...)
 	snapshot.Repos = copyConfigRepoMap(cfg.Repos)
 	snapshot.DiscoveredRepos = copyConfigRepoMap(cfg.DiscoveredRepos)

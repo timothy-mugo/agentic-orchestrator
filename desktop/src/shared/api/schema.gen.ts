@@ -528,7 +528,7 @@ export interface paths {
         head?: never;
         /**
          * Patch runtime configuration.
-         * @description Partially updates the runtime configuration. Submitted workspace_roots are validated against the server's filesystem before persistence: every root must exist and resolve to a directory, otherwise the request fails with a 400 invalid_workspace_root error naming each offending path in error.target.invalid_workspace_roots and nothing is persisted.
+         * @description Partially updates the runtime configuration. Submitted workspace_roots are validated against the server's filesystem before persistence: every root must exist and resolve to a directory, otherwise the request fails with a 400 invalid_workspace_root error naming each offending path in error.target.invalid_workspace_roots and nothing is persisted. skills.roots lists extra skill folders. A folder that is not already configured must exist and be a directory, or the request fails with 400 and nothing is persisted. A folder already in the saved list is kept when it cannot be opened. skills.disabled turns off a shipped guideline or optional built-in skill by catalog id. skills.enabled turns on a skill discovered outside the binary by catalog id. Phase skills stay on when their id is listed in disabled.
          */
         patch: operations["patchRuntimeConfig"];
         trace?: never;
@@ -2551,6 +2551,37 @@ export interface components {
         NotificationConfig: {
             mute_feature_input: boolean;
         };
+<<<<<<< HEAD
+=======
+        SkillCatalogEntry: {
+            id: string;
+            name: string;
+            description: string;
+            kind: string;
+            origin: string;
+            path: string;
+            enabled: boolean;
+            toggleable: boolean;
+        };
+        /** @description Switch list for language guidelines and skills. roots are extra folders scanned in addition to the default user skills folder. disabled lists catalog ids of shipped guidelines and optional built-in skills to turn off. enabled lists catalog ids of discovered skills to turn on. */
+        SkillPolicy: {
+            roots?: string[];
+            disabled?: string[];
+            enabled?: string[];
+        };
+        RuntimeConfigPatch: {
+            workspace_roots?: string[];
+            notifications?: components["schemas"]["NotificationConfig"];
+            skills?: components["schemas"]["SkillPolicy"];
+        } & {
+            [key: string]: unknown;
+        };
+        SkillCatalog: {
+            roots?: string[];
+            implicit_roots?: string[];
+            entries: components["schemas"]["SkillCatalogEntry"][];
+        };
+>>>>>>> d880c3a (Enhance Skill Management and Runtime Configuration)
         Observability: {
             events: boolean;
             otel_enabled: boolean;
@@ -4193,6 +4224,11 @@ export interface components {
                 };
             };
         };
+        RuntimeConfigPatchRequest: {
+            content: {
+                "application/json": components["schemas"]["RuntimeConfigPatch"];
+            };
+        };
         ProviderModelRefreshRequest: {
             content: {
                 "application/json": components["schemas"]["ProviderModelRefreshRequest"];
@@ -4847,7 +4883,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: components["requestBodies"]["JSONMutation"];
+        requestBody: components["requestBodies"]["RuntimeConfigPatchRequest"];
         responses: {
             200: components["responses"]["RuntimeConfigUpdateResponse"];
             400: components["responses"]["ErrorResponse"];

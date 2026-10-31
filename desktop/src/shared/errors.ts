@@ -151,6 +151,13 @@ export const ERROR_CATALOG = {
     summary: () => 'The application core did not respond.',
     remediationHint: () => 'Restart the app, then retry.',
   }),
+  /** The skill switch list was saved, but the follow-up catalog read failed. */
+  E_SKILL_CATALOG_REFRESH: entry({
+    class: 'warning',
+    title: 'Skill list refresh failed',
+    summary: () => 'The skill settings were saved, but the list could not be refreshed.',
+    remediationHint: () => 'Reopen Skills settings to load the saved list.',
+  }),
   /** A request outran its client-side bound; the server operation may still run. */
   E_REQUEST_TIMEOUT: entry({
     class: 'warning',

@@ -616,10 +616,11 @@ func runImplementationLoop(cfg ImplementConfig, sm ports.SessionManager) (result
 			}
 			cfg.Observer.SessionStarted(implSessionCtx, "implement", sessionID, implProvider, sessionConfig.Model, cfg.RepoName, string(sessionConfig.EffectiveEffort), string(sessionConfig.EffortSource))
 			implTracker := &contextReadTracker{
-				KBBaseDir:     filepath.Join(filepath.Dir(cfg.StateDir), "knowledge-base"),
-				SkillsDir:     cfg.SkillsDir,
-				GuidelinesDir: cfg.GuidelinesDir,
-				Observer:      cfg.Observer,
+				KBBaseDir:         filepath.Join(filepath.Dir(cfg.StateDir), "knowledge-base"),
+				SkillsDir:         cfg.SkillsDir,
+				GuidelinesDir:     cfg.GuidelinesDir,
+				ExternalSkillDirs: cfg.SkillFilter.Dirs(),
+				Observer:          cfg.Observer,
 			}
 			implTracker.install(sess, implSessionCtx, "implement", sessionID)
 

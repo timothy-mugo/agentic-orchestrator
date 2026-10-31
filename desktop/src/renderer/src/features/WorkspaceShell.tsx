@@ -322,6 +322,7 @@ export function WorkspaceShell({
   // reopen the popover on the remount.
   const clearSwitcherRoute = useCallback(() => setSwitcherRoute(null), []);
   const listRequestRef = useRef(0);
+  const catalogRequestRef = useRef(0);
   // The creation sheet's open flag and retained draft live per server in a
   // store that survives this shell's unmount (a disconnect or a server
   // switch unmounts the whole ready tree; the store lives above it in App).
@@ -512,9 +513,14 @@ export function WorkspaceShell({
         if (isCurrent()) setList({ phase: 'error', error: parseIpcError(err) });
       },
     );
+  }, [refineDetails]);
+
+  const loadCatalog = useCallback(() => {
+    const request = ++catalogRequestRef.current;
+    const isCurrent = () => request === catalogRequestRef.current;
     // The project folders are the repository catalog. A failure here only
     // hides empty projects: features still group under the repo names they
-    // already carry. Wrapped so a missing method cannot skip the list above.
+    // already carry.
     void Promise.resolve()
       .then(() => window.agentico.listRepositories())
       .then(
@@ -531,15 +537,21 @@ export function WorkspaceShell({
           if (isCurrent()) setCatalog([]);
         },
       );
-  }, [refineDetails]);
+  }, []);
 
   // The sidebar's feature list follows the authoritative server state: fetch
   // on mount and refetch on any feature-scoped invalidation or full resync.
+  // The repository catalog is independent and only refreshes when configuration
+  // changes or the server requests a full resync.
   useEffect(() => {
     loadList();
+    loadCatalog();
     return window.agentico.onAppEvent((event) => {
       if (event.type !== 'invalidated') {
         return;
+      }
+      if (event.kind === 'resync' || event.kind.startsWith('config')) {
+        loadCatalog();
       }
       if (
         event.kind === 'resync' ||
@@ -551,7 +563,7 @@ export function WorkspaceShell({
         loadList();
       }
     });
-  }, [loadList]);
+  }, [loadCatalog, loadList]);
 
   /** Persist failures never block the UI — the shell selection is presentation only. */
   const persistPatch = useCallback((patch: ShellPatch) => {

@@ -1121,6 +1121,32 @@ describe('WorkspaceShell feature list loading', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mock.api.listFeatures).toHaveBeenCalledTimes(1);
   });
+
+  it('refreshes the project catalog only for configuration changes and full resyncs', async () => {
+    const mock = installAgenticoMock({ settings: settingsWithActive(null), features: [] });
+    render(<WorkspaceShell />);
+    await screen.findByRole('region', { name: 'Supervisor' });
+    await waitFor(() => {
+      expect(mock.api.listFeatures).toHaveBeenCalledTimes(1);
+      expect(mock.api.listRepositories).toHaveBeenCalledTimes(1);
+    });
+
+    mock.emitAppEvent({ type: 'invalidated', kind: 'feature.created', featureId: FEATURE_ID });
+    await waitFor(() => expect(mock.api.listFeatures).toHaveBeenCalledTimes(2));
+    expect(mock.api.listRepositories).toHaveBeenCalledTimes(1);
+
+    mock.emitAppEvent({ type: 'invalidated', kind: 'config.updated' });
+    await waitFor(() => {
+      expect(mock.api.listFeatures).toHaveBeenCalledTimes(3);
+      expect(mock.api.listRepositories).toHaveBeenCalledTimes(2);
+    });
+
+    mock.emitAppEvent({ type: 'invalidated', kind: 'resync' });
+    await waitFor(() => {
+      expect(mock.api.listFeatures).toHaveBeenCalledTimes(4);
+      expect(mock.api.listRepositories).toHaveBeenCalledTimes(3);
+    });
+  });
 });
 
 describe('WorkspaceShell toolbar', () => {

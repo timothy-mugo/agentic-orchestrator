@@ -17,11 +17,12 @@ limitations under the License.
 /**
  * Bench sidebar shell mechanics against the packaged app: pointer
  * selection, the roving-tabindex Arrow/Home/End keyboard model (scoped to
- * whatever a lane's `<details>` disclosure currently shows), ⌘2-9 absolute
- * sidebar-position selection (reachable even inside a collapsed lane, unlike
- * Arrow/Home/End), ⌘1 going home to the pinned Supervisor row (the first
- * row, selected on launch, and never counted by ⌘2-9), the sidebar-toggle
- * button and ⌘⌃S collapse paths, and the ~700px auto-collapse breakpoint.
+ * whatever a project folder's `<details>` disclosure currently shows),
+ * ⌘2-9 absolute sidebar-position selection (reachable even inside a
+ * collapsed folder, unlike Arrow/Home/End), ⌘1 going home to the pinned
+ * Supervisor row (the first row, selected on launch, and never counted by
+ * ⌘2-9), the sidebar-toggle button and ⌘⌃S collapse paths, and the ~700px
+ * auto-collapse breakpoint.
  */
 import { expect, test } from '@playwright/test';
 import {
@@ -105,7 +106,7 @@ test('workspace sidebar: pointer, keyboard, ⌘2-9, and collapse against the pac
       )
       .toBe(270);
 
-    transcript.section('Create three features — they land together in the At rest lane');
+    transcript.section('Create three features — they land together under sidebar-lab');
     const names = ['Sidebar Alpha', 'Sidebar Beta', 'Sidebar Gamma'];
     for (const name of names) {
       // Wait for setup so every feature settles into the stable CodeReady
@@ -120,12 +121,12 @@ test('workspace sidebar: pointer, keyboard, ⌘2-9, and collapse against the pac
       // so the next creation starts from right here.
       await expect(handle.page.getByRole('button', { name: 'New feature' })).toBeVisible();
     }
-    const atRestGroup = handle.page.getByRole('group', { name: 'At rest' });
-    await expect(atRestGroup).toBeVisible();
+    const projectGroup = handle.page.getByRole('group', { name: 'sidebar-lab' });
+    await expect(projectGroup).toBeVisible();
     for (const name of names) {
-      await expect(atRestGroup.getByText(name, { exact: true })).toBeVisible();
+      await expect(projectGroup.getByText(name, { exact: true })).toBeVisible();
     }
-    transcript.step('three features created, all grouped under At rest');
+    transcript.step('three features created, all grouped under sidebar-lab');
 
     transcript.section('Pointer selection switches the mounted content');
     // The pinned Supervisor row + the three created features — no Overview.
@@ -135,7 +136,7 @@ test('workspace sidebar: pointer, keyboard, ⌘2-9, and collapse against the pac
     // would otherwise glue onto the name.
     const rowNames = await listbox.locator('.sidebar__row-name').allTextContents();
     // Visual/DOM order: the pinned Supervisor row, then the three features in
-    // lane order.
+    // project order.
     expect(rowNames[0]).toBe('Supervisor');
     const [, firstName, secondName, thirdName] = rowNames as [string, string, string, string];
 
@@ -183,20 +184,20 @@ test('workspace sidebar: pointer, keyboard, ⌘2-9, and collapse against the pac
     );
 
     transcript.section(
-      '⌘2-9 select by absolute sidebar position — reachable even inside a collapsed lane',
+      '⌘2-9 select by absolute sidebar position — reachable even inside a collapsed project',
     );
-    await handle.page.locator('summary.sidebar__lane-summary', { hasText: 'At rest' }).click();
-    await expect(atRestGroup).toBeHidden();
+    await handle.page.locator('summary.sidebar__project-summary', { hasText: 'sidebar-lab' }).click();
+    await expect(projectGroup).toBeHidden();
 
     // ⌘2 → the 1st feature in absolute order, ⌘4 → the 3rd — both still
-    // inside the now-collapsed At rest lane. The pinned Supervisor row is not
-    // numbered, so it never shifts the feature shortcuts.
+    // inside the now-collapsed sidebar-lab folder. The pinned Supervisor row
+    // is not numbered, so it never shifts the feature shortcuts.
     await handle.page.keyboard.press('ControlOrMeta+2');
     await expect(handle.page.getByLabel(`Feature ${firstName}`)).toBeVisible({ timeout: 15_000 });
     await handle.page.keyboard.press('ControlOrMeta+4');
     await expect(handle.page.getByLabel(`Feature ${thirdName}`)).toBeVisible({ timeout: 15_000 });
     transcript.step(
-      `⌘2 and ⌘4 selected "${firstName}" and "${thirdName}" while their lane stayed collapsed`,
+      `⌘2 and ⌘4 selected "${firstName}" and "${thirdName}" while their project stayed collapsed`,
     );
 
     // ⌘1 is a native-menu accelerator (Navigate ▸ Supervisor), which a
@@ -214,8 +215,8 @@ test('workspace sidebar: pointer, keyboard, ⌘2-9, and collapse against the pac
     await expect(handle.page.getByLabel(`Feature ${thirdName}`)).toHaveCount(0);
     transcript.step('⌘1 (Navigate ▸ Supervisor) went home to the Supervisor page');
 
-    await handle.page.locator('summary.sidebar__lane-summary', { hasText: 'At rest' }).click();
-    await expect(atRestGroup).toBeVisible();
+    await handle.page.locator('summary.sidebar__project-summary', { hasText: 'sidebar-lab' }).click();
+    await expect(projectGroup).toBeVisible();
 
     transcript.section('The toolbar sidebar-toggle button collapses and persists the choice');
     // A raw CSS locator, not getByRole: `.sidebar[data-collapsed='true']` sets

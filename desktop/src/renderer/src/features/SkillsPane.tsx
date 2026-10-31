@@ -133,7 +133,7 @@ export function SkillsPane({ remote }: { remote: boolean }) {
             {catalog.roots.map((path) => (
               <li key={path}>
                 <code>{path}</code>
-                <button type="button" onClick={() => removeFolder(path)} disabled={busy}>
+                  disabled={busy || remote}
                   Remove
                 </button>
               </li>

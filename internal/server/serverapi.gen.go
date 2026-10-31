@@ -18,6 +18,8 @@
 package server
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	config "github.com/doordash-oss/agentic-orchestrator/internal/config"
@@ -4522,6 +4524,16 @@ type RunSummary struct {
 	StartedAt                       *time.Time `json:"started_at,omitempty"`
 }
 
+// RuntimeConfigPatch defines model for RuntimeConfigPatch.
+type RuntimeConfigPatch struct {
+	Notifications NotificationConfig `json:"notifications,omitempty"`
+
+	// Skills Switch list for language guidelines and skills. roots are extra folders scanned in addition to the default user skills folder. disabled lists catalog ids of shipped guidelines and optional built-in skills to turn off. enabled lists catalog ids of discovered skills to turn on.
+	Skills               SkillPolicy            `json:"skills,omitempty"`
+	WorkspaceRoots       []string               `json:"workspace_roots,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
 // RuntimeConfigResponse defines model for RuntimeConfigResponse.
 type RuntimeConfigResponse struct {
 	APIVersion      string             `json:"api_version"`
@@ -4533,6 +4545,7 @@ type RuntimeConfigResponse struct {
 	Providers       []string           `json:"providers"`
 	Repos           []ConfigRepo       `json:"repos"`
 	Runtime         RuntimeIdentity    `json:"runtime"`
+	SkillCatalog    SkillCatalog       `json:"skill_catalog,omitempty"`
 	WorkspaceRoots  []string           `json:"workspace_roots,omitempty"`
 }
 
@@ -4713,6 +4726,32 @@ type SetupTask struct {
 	StartedAt        *time.Time `json:"started_at,omitempty"`
 	Status           string     `json:"status"`
 	UseCurrentBranch bool       `json:"use_current_branch,omitempty"`
+}
+
+// SkillCatalog defines model for SkillCatalog.
+type SkillCatalog struct {
+	Entries       []SkillCatalogEntry `json:"entries"`
+	ImplicitRoots []string            `json:"implicit_roots,omitempty"`
+	Roots         []string            `json:"roots,omitempty"`
+}
+
+// SkillCatalogEntry defines model for SkillCatalogEntry.
+type SkillCatalogEntry struct {
+	Description string `json:"description"`
+	Enabled     bool   `json:"enabled"`
+	ID          string `json:"id"`
+	Kind        string `json:"kind"`
+	Name        string `json:"name"`
+	Origin      string `json:"origin"`
+	Path        string `json:"path"`
+	Toggleable  bool   `json:"toggleable"`
+}
+
+// SkillPolicy Switch list for language guidelines and skills. roots are extra folders scanned in addition to the default user skills folder. disabled lists catalog ids of shipped guidelines and optional built-in skills to turn off. enabled lists catalog ids of discovered skills to turn on.
+type SkillPolicy struct {
+	Disabled []string `json:"disabled,omitempty"`
+	Enabled  []string `json:"enabled,omitempty"`
+	Roots    []string `json:"roots,omitempty"`
 }
 
 // StageUploadResponse defines model for StageUploadResponse.
@@ -5515,6 +5554,9 @@ type Unauthorized = ErrorResponse
 // JSONMutation defines model for JSONMutation.
 type JSONMutation map[string]interface{}
 
+// RuntimeConfigPatchRequest defines model for RuntimeConfigPatchRequest.
+type RuntimeConfigPatchRequest = RuntimeConfigPatch
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -5529,9 +5571,6 @@ type RefreshProviderModelsParams struct {
 
 // RefreshProviderModelsParamsXAgenticoClient defines parameters for RefreshProviderModels.
 type RefreshProviderModelsParamsXAgenticoClient string
-
-// PatchRuntimeConfigJSONBody defines parameters for PatchRuntimeConfig.
-type PatchRuntimeConfigJSONBody map[string]interface{}
 
 // PatchRuntimeConfigParams defines parameters for PatchRuntimeConfig.
 type PatchRuntimeConfigParams struct {
@@ -6048,7 +6087,7 @@ type UpdateWorkspaceRepositorySourceParamsXAgenticoClient string
 type RefreshProviderModelsJSONRequestBody = ProviderModelRefreshRequest
 
 // PatchRuntimeConfigJSONRequestBody defines body for PatchRuntimeConfig for application/json ContentType.
-type PatchRuntimeConfigJSONRequestBody PatchRuntimeConfigJSONBody
+type PatchRuntimeConfigJSONRequestBody = RuntimeConfigPatch
 
 // CreateFeatureJSONRequestBody defines body for CreateFeature for application/json ContentType.
 type CreateFeatureJSONRequestBody = CreateFeatureMutationRequest
@@ -6151,3 +6190,97 @@ type InspectWorkspaceRepositorySourcesJSONRequestBody = RepositorySourcesRequest
 
 // UpdateWorkspaceRepositorySourceJSONRequestBody defines body for UpdateWorkspaceRepositorySource for application/json ContentType.
 type UpdateWorkspaceRepositorySourceJSONRequestBody = RepositoryUpdateSourceRequest
+
+// Getter for additional properties for RuntimeConfigPatch. Returns the specified
+// element and whether it was found
+func (a RuntimeConfigPatch) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for RuntimeConfigPatch
+func (a *RuntimeConfigPatch) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for RuntimeConfigPatch to handle AdditionalProperties
+func (a *RuntimeConfigPatch) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["notifications"]; found {
+		err = json.Unmarshal(raw, &a.Notifications)
+		if err != nil {
+			return fmt.Errorf("error reading 'notifications': %w", err)
+		}
+		delete(object, "notifications")
+	}
+
+	if raw, found := object["skills"]; found {
+		err = json.Unmarshal(raw, &a.Skills)
+		if err != nil {
+			return fmt.Errorf("error reading 'skills': %w", err)
+		}
+		delete(object, "skills")
+	}
+
+	if raw, found := object["workspace_roots"]; found {
+		err = json.Unmarshal(raw, &a.WorkspaceRoots)
+		if err != nil {
+			return fmt.Errorf("error reading 'workspace_roots': %w", err)
+		}
+		delete(object, "workspace_roots")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for RuntimeConfigPatch to handle AdditionalProperties
+func (a RuntimeConfigPatch) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["notifications"], err = json.Marshal(a.Notifications)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'notifications': %w", err)
+	}
+
+	object["skills"], err = json.Marshal(a.Skills)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'skills': %w", err)
+	}
+
+	if a.WorkspaceRoots != nil {
+		object["workspace_roots"], err = json.Marshal(a.WorkspaceRoots)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'workspace_roots': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}

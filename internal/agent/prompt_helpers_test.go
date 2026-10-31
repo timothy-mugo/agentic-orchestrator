@@ -21,9 +21,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/doordash-oss/agentic-orchestrator/internal/config"
 	"github.com/doordash-oss/agentic-orchestrator/internal/feature"
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm"
 	"github.com/doordash-oss/agentic-orchestrator/internal/observe"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 )
 
 // fakeSubagentSession implements just enough of the session interface to test
@@ -59,7 +61,7 @@ func TestBuildPreflightInput(t *testing.T) {
 	const guidelinesDir = "/state/guidelines"
 
 	t.Run("no context", func(t *testing.T) {
-		got := buildPreflightInput(feature.PhaseImplement, "", nil, "")
+		got := buildPreflightInput(feature.PhaseImplement, "", nil, "", skillcatalog.Filter{})
 		if got.HasKB || got.HasGuidelines || got.HasSkills {
 			t.Errorf("buildPreflightInput() = %+v, want no enabled sections", got)
 		}
@@ -68,7 +70,7 @@ func TestBuildPreflightInput(t *testing.T) {
 	t.Run("kb paths included", func(t *testing.T) {
 		got := buildPreflightInput(feature.PhaseImplement, "", []KBInfo{
 			{Name: "repo-a", IndexPath: "/state/repo-a/kb/index.md", RootDir: "/state/repo-a/kb"},
-		}, "")
+		}, "", skillcatalog.Filter{})
 		if !got.HasKB || len(got.KBInfos) != 1 {
 			t.Fatalf("buildPreflightInput().KBInfos = %+v, want one enabled KB", got.KBInfos)
 		}
@@ -82,7 +84,7 @@ func TestBuildPreflightInput(t *testing.T) {
 		got := buildPreflightInput(feature.PhaseImplement, "", []KBInfo{
 			{Name: "repo-a", IndexPath: "/a/index.md", RootDir: "/a"},
 			{Name: "repo-b", IndexPath: "/b/index.md", RootDir: "/b"},
-		}, "")
+		}, "", skillcatalog.Filter{})
 		if len(got.KBInfos) != 2 {
 			t.Fatalf("buildPreflightInput().KBInfos length = %d, want 2", len(got.KBInfos))
 		}
@@ -94,7 +96,7 @@ func TestBuildPreflightInput(t *testing.T) {
 	t.Run("kb and guidelines", func(t *testing.T) {
 		got := buildPreflightInput(feature.PhaseImplement, "", []KBInfo{
 			{Name: "repo-a", IndexPath: "/idx", RootDir: "/root"},
-		}, guidelinesDir)
+		}, guidelinesDir, skillcatalog.Filter{})
 		if !got.HasKB {
 			t.Error("HasKB = false, want true")
 		}
@@ -112,7 +114,7 @@ func TestBuildPreflightInput(t *testing.T) {
 	})
 
 	t.Run("guidelines only", func(t *testing.T) {
-		got := buildPreflightInput(feature.PhaseImplement, "", nil, guidelinesDir)
+		got := buildPreflightInput(feature.PhaseImplement, "", nil, guidelinesDir, skillcatalog.Filter{})
 		if got.HasKB {
 			t.Error("HasKB = true, want false")
 		}
@@ -125,6 +127,40 @@ func TestBuildPreflightInput(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestBuildPreflightInputHonorsSkillSwitches(t *testing.T) {
+	root := t.TempDir()
+	skillDir := filepath.Join(root, "systematic-debugging")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "---\nname: systematic-debugging\ndescription: Find the root cause before fixing\ntopics: bugs\n---\n\n# Debug\n"
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	filter := skillcatalog.Resolve(config.SkillsConfig{
+		Disabled: []string{"guideline:go", "skill:frontend-design"},
+		Enabled:  []string{"external:systematic-debugging"},
+	}, t.TempDir(), "/state/guidelines", root).Filter()
+	got := buildPreflightInput(feature.PhaseImplement, t.TempDir(), nil, "/state/guidelines", filter)
+	for _, guideline := range got.Guidelines {
+		if strings.Contains(guideline.IndexPath, "/go/") {
+			t.Fatalf("disabled Go guideline still advertised: %+v", guideline)
+		}
+	}
+	for _, skill := range got.Skills {
+		if skill.Name == "frontend-design" {
+			t.Fatal("disabled frontend-design still advertised")
+		}
+		if skill.Name == "systematic-debugging" {
+			if skill.Path != filepath.Join(skillDir, "SKILL.md") {
+				t.Fatalf("external skill path = %s", skill.Path)
+			}
+			return
+		}
+	}
+	t.Fatal("enabled systematic-debugging skill was not advertised")
 }
 
 func TestContextReadTracker_EmitsProviderFileRead(t *testing.T) {
@@ -255,6 +291,18 @@ func TestSubagentProgressTracker_ForwardsProgress(t *testing.T) {
 		!strings.Contains(lines[3], `"status":"completed"`) ||
 		!strings.Contains(lines[3], `"duration_ms":1500`) {
 		t.Errorf("fourth event unexpected: %s", lines[3])
+	}
+}
+
+func TestClassifyContextReadIncludesExternalSkillDirs(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "systematic-debugging")
+	got, ok := classifyContextRead(filepath.Join(dir, "SKILL.md"), "", "", "", []string{dir})
+	if !ok || got != "skill" {
+		t.Fatalf("classify = %q, %v", got, ok)
+	}
+	sibling := dir + "-extra"
+	if _, ok := classifyContextRead(filepath.Join(sibling, "SKILL.md"), "", "", "", []string{dir}); ok {
+		t.Fatal("sibling directory was classified as a skill read")
 	}
 }
 

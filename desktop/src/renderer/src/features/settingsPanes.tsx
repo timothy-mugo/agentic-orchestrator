@@ -34,6 +34,7 @@ import {
   BellIcon,
   DefaultsIcon,
   DiagnosticsIcon,
+  SkillsIcon,
   FolderIcon,
   ProvidersIcon,
   ServersIcon,
@@ -55,6 +56,7 @@ export const SETTINGS_PANE_CATALOGUE: readonly SettingsPaneDescriptor[] = [
   { id: 'notifications', label: 'Notifications', Icon: BellIcon },
   { id: 'diagnostics', label: 'Diagnostics', Icon: DiagnosticsIcon },
   { id: 'advanced', label: 'Advanced', Icon: AdvancedIcon },
+  { id: 'skills', label: 'Skills', Icon: SkillsIcon },
   { id: 'workspace-defaults', label: 'Workspace defaults', Icon: DefaultsIcon },
 ];
 

@@ -1067,6 +1067,32 @@ export const AbsolutePathSchema = z
     message: 'Expected an absolute path.',
   });
 
+export const SkillCatalogEntrySchema = z.strictObject({
+  id: z.string().min(1).max(200),
+  name: z.string().max(200),
+  description: z.string().max(4000),
+  kind: z.enum(['skill', 'guideline']),
+  origin: z.enum(['builtin', 'external']),
+  path: z.string().max(4096),
+  enabled: z.boolean(),
+  toggleable: z.boolean(),
+});
+export type SkillCatalogEntry = z.output<typeof SkillCatalogEntrySchema>;
+
+export const SkillCatalogSchema = z.strictObject({
+  roots: z.array(z.string().max(4096)),
+  implicitRoots: z.array(z.string().max(4096)),
+  entries: z.array(SkillCatalogEntrySchema),
+});
+export type SkillCatalog = z.output<typeof SkillCatalogSchema>;
+
+export const SkillPolicySchema = z.strictObject({
+  roots: z.array(AbsolutePathSchema).max(32),
+  disabled: z.array(z.string().min(1).max(200)).max(500),
+  enabled: z.array(z.string().min(1).max(200)).max(500),
+});
+export type SkillPolicy = z.output<typeof SkillPolicySchema>;
+
 /** Native directory-picker result; `path` is null when the user cancelled. */
 const PickedDirectorySchema = z.strictObject({
   path: AbsolutePathSchema.nullable(),
@@ -3950,6 +3976,7 @@ export const SETTINGS_PANES = [
   'notifications',
   'diagnostics',
   'advanced',
+  'skills',
   'workspace-defaults',
 ] as const;
 
@@ -4347,6 +4374,8 @@ export const ipcContracts = {
   getReadiness: { request: z.tuple([]), response: ReadinessSnapshotSchema },
   refreshReadiness: { request: z.tuple([]), response: ReadinessSnapshotSchema },
   pickWorkspaceDirectory: { request: z.tuple([]), response: PickedDirectorySchema },
+  getSkillCatalog: { request: z.tuple([]), response: SkillCatalogSchema },
+  updateSkillPolicy: { request: z.tuple([SkillPolicySchema]), response: SkillCatalogSchema },
   addWorkspaceRoot: { request: z.tuple([AbsolutePathSchema]), response: ReadinessSnapshotSchema },
   removeWorkspaceRoot: {
     request: z.tuple([AbsolutePathSchema]),
@@ -4719,6 +4748,10 @@ export interface AgenticoApi {
   getReadiness(): Promise<ReadinessSnapshot>;
   refreshReadiness(): Promise<ReadinessSnapshot>;
   pickWorkspaceDirectory(): Promise<PickedDirectory>;
+  /** Skills and language guidelines the connected server can offer an agent. */
+  getSkillCatalog(): Promise<SkillCatalog>;
+  /** Replaces the skill switch list and returns the catalog that results. */
+  updateSkillPolicy(policy: SkillPolicy): Promise<SkillCatalog>;
   addWorkspaceRoot(path: string): Promise<ReadinessSnapshot>;
   removeWorkspaceRoot(path: string): Promise<ReadinessSnapshot>;
   reorderWorkspaceRoots(paths: string[]): Promise<ReadinessSnapshot>;

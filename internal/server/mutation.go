@@ -34,6 +34,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm"
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm/askuser"
 	"github.com/doordash-oss/agentic-orchestrator/internal/ports"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 	"github.com/doordash-oss/agentic-orchestrator/internal/workadmission"
 	"github.com/doordash-oss/agentic-orchestrator/internal/workspace"
 )
@@ -221,6 +222,7 @@ type RuntimeConfigMutationRequest struct {
 	Defaults       RuntimeDefaultsMutation `json:"defaults,omitempty"`
 	WorkspaceRoots *[]string               `json:"workspace_roots,omitempty"`
 	Notifications  *NotificationConfig     `json:"notifications,omitempty"`
+	Skills         *config.SkillsConfig    `json:"skills,omitempty"`
 }
 
 // RuntimeDefaultsMutation is the patch representation of DefaultsConfig.
@@ -1087,6 +1089,16 @@ func (h *apiHandler) handleRuntimeConfigRoute(w http.ResponseWriter, r *http.Req
 			}
 			if !validateEffortConfig(w, req.Defaults.Effort, models, h.registry) {
 				return false
+			}
+			if req.Skills != nil {
+				current := h.configOrDefault().CloneSkills()
+				kept, fresh := skillcatalog.PartitionRoots(current.Roots, req.Skills.Roots)
+				cleaned, err := skillcatalog.CleanRoots(fresh)
+				if err != nil {
+					writeAPIError(w, http.StatusBadRequest, errcat.BadRequest, errcat.WithDiagnostics(err.Error()))
+					return false
+				}
+				req.Skills.Roots = append(kept, cleaned...)
 			}
 			return req.WorkspaceRoots == nil || validateWorkspaceRootPaths(w, *req.WorkspaceRoots)
 		}, func(req RuntimeConfigMutationRequest) (RuntimeConfigUpdateResponse, error) {

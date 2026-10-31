@@ -193,6 +193,8 @@ function makeServices(): IpcServices {
     getReadiness: vi.fn(() => Promise.resolve(emptyReadinessSnapshot())),
     refreshReadiness: vi.fn(() => Promise.resolve(emptyReadinessSnapshot())),
     pickWorkspaceDirectory: vi.fn(() => Promise.resolve({ path: null })),
+    getSkillCatalog: vi.fn(() => Promise.resolve({ roots: [], implicitRoots: [], entries: [] })),
+    updateSkillPolicy: vi.fn(() => Promise.resolve({ roots: [], implicitRoots: [], entries: [] })),
     addWorkspaceRoot: vi.fn(() => Promise.resolve(emptyReadinessSnapshot())),
     removeWorkspaceRoot: vi.fn(() => Promise.resolve(emptyReadinessSnapshot())),
     reorderWorkspaceRoots: vi.fn(() => Promise.resolve(emptyReadinessSnapshot())),

@@ -29,6 +29,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/observe"
 	"github.com/doordash-oss/agentic-orchestrator/internal/permission"
 	"github.com/doordash-oss/agentic-orchestrator/internal/ports"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 )
 
 // reviewHelperConfig configures a bounded review or validation run that uses
@@ -76,6 +77,8 @@ type reviewHelperConfig struct {
 	// OnRetry, when set, is called before each retried session attempt with
 	// the error that ended the previous attempt.
 	OnRetry func(nextAttempt int, err error)
+	// SkillFilter carries the settings switches into the helper prompt.
+	SkillFilter skillcatalog.Filter
 }
 
 // reviewHelperResult captures the parsed verdict from a bounded helper run.
@@ -126,6 +129,7 @@ func (pr *PhaseRunner) reviewHelperSystemPrompt(spec roleSpec, cfg reviewHelperC
 		GuidelinesDir:  pr.GuidelinesDir,
 		AskingClause:   askingClause,
 		CompletionTool: completionTool,
+		SkillFilter:    cfg.SkillFilter,
 	})
 }
 

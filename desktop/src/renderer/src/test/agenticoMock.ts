@@ -412,6 +412,8 @@ export interface AgenticoMock {
     getReadiness: ReturnType<typeof vi.fn>;
     refreshReadiness: ReturnType<typeof vi.fn>;
     pickWorkspaceDirectory: ReturnType<typeof vi.fn>;
+    getSkillCatalog: ReturnType<typeof vi.fn>;
+    updateSkillPolicy: ReturnType<typeof vi.fn>;
     addWorkspaceRoot: ReturnType<typeof vi.fn>;
     removeWorkspaceRoot: ReturnType<typeof vi.fn>;
     reorderWorkspaceRoots: ReturnType<typeof vi.fn>;
@@ -819,6 +821,8 @@ export function installAgenticoMock(
     getReadiness: vi.fn(() => Promise.resolve(readiness)),
     refreshReadiness: vi.fn(() => Promise.resolve(readiness)),
     pickWorkspaceDirectory: vi.fn(() => Promise.resolve({ path: null })),
+    getSkillCatalog: vi.fn(() => Promise.resolve({ roots: [], implicitRoots: [], entries: [] })),
+    updateSkillPolicy: vi.fn(() => Promise.resolve({ roots: [], implicitRoots: [], entries: [] })),
     addWorkspaceRoot: vi.fn(() => Promise.resolve(readiness)),
     removeWorkspaceRoot: vi.fn(() => Promise.resolve(readiness)),
     reorderWorkspaceRoots: vi.fn(() => Promise.resolve(readiness)),

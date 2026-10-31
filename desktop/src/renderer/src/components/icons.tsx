@@ -219,6 +219,16 @@ export function AdvancedIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Skills, a bookmark for a page the agent can be told to read. */
+export function SkillsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M6 4.5h9.5a2 2 0 0 1 2 2V20l-4.2-2.2L9.2 20V6.5a2 2 0 0 0-2-2H6Z" />
+      <path d="M6 4.5v13" />
+    </Icon>
+  );
+}
+
 /** Workspace defaults, shaped after SF Symbols' `list.bullet.rectangle`. */
 export function DefaultsIcon(props: SVGProps<SVGSVGElement>) {
   return (

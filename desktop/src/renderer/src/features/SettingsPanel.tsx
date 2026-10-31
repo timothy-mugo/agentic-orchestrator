@@ -39,6 +39,7 @@ import { ErrorSurface } from '../components/ErrorSurface';
 import { BUNDLED_RUNTIME_LABEL } from '../components/ServerSwitcher';
 import { FieldError } from '../components/FieldError';
 import { SettingsConfirmationDialog } from './SettingsConfirmationDialog';
+import { SkillsPane } from './SkillsPane';
 import { ServerUpdateCard } from './ServerUpdateCard';
 import { SupervisorUpdateCopy } from './supervisor/SupervisorUpdateCopy';
 import type { PaneFocusIntent } from './settingsPanes';
@@ -948,6 +949,8 @@ export function SettingsPanel({
           )}
         </section>
       )}
+
+      {pane === 'skills' && <SkillsPane remote={remoteServer} />}
 
       {pane === 'workspace-defaults' && (
         <section className="settings-panel__section" aria-label="Workspace defaults">

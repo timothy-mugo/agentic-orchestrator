@@ -43,6 +43,7 @@ const PANE_ORDER = [
   'Notifications',
   'Diagnostics',
   'Advanced',
+  'Skills',
   'Workspace defaults',
 ];
 
@@ -56,6 +57,7 @@ const PANE_REGION_LABEL: Record<string, string> = {
   notifications: 'Notifications',
   diagnostics: 'Diagnostics',
   advanced: 'Advanced runtime path',
+  skills: 'Skills',
   'workspace-defaults': 'Workspace defaults',
 };
 

@@ -1212,6 +1212,43 @@ func TestServerMutationTargetRuntimeConfigPersistsWorkspaceRootsAndDiscoversRepo
 	}
 }
 
+func TestServerMutationTargetRuntimeConfigPersistsSkillSwitches(t *testing.T) {
+	runtimeDir := t.TempDir()
+	configPath := filepath.Join(runtimeDir, "config.yaml")
+	skillRoot := filepath.Join(runtimeDir, "skills")
+	if err := os.MkdirAll(skillRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.NewDefault()
+	if err := config.Save(configPath, cfg); err != nil {
+		t.Fatal(err)
+	}
+	target := newMutationTarget(Deps{Config: cfg, ConfigPath: configPath})
+	policy := config.SkillsConfig{
+		Roots:    []string{skillRoot},
+		Disabled: []string{"guideline:go"},
+		Enabled:  []string{"external:systematic-debugging"},
+	}
+
+	result, err := target.RuntimeConfig(serverruntime.RuntimeConfigMutationRequest{Skills: &policy})
+	if err != nil {
+		t.Fatalf("RuntimeConfig() error = %v", err)
+	}
+	if result.Result != resultUpdated {
+		t.Fatalf("result = %s", result.Result)
+	}
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Skills.Disabled) != 1 || loaded.Skills.Disabled[0] != "guideline:go" {
+		t.Fatalf("persisted skills = %+v", loaded.Skills)
+	}
+	if len(loaded.Skills.Enabled) != 1 || loaded.Skills.Roots[0] != skillRoot {
+		t.Fatalf("persisted skills = %+v", loaded.Skills)
+	}
+}
+
 func TestServerMutationTargetRuntimeConfigRediscoverReposWhenWorkspaceRootsUnchanged(t *testing.T) {
 	runtimeDir := t.TempDir()
 	configPath := filepath.Join(runtimeDir, "config.yaml")

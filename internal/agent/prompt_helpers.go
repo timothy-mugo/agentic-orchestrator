@@ -16,6 +16,7 @@ package agent
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/guidelinedef"
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm"
 	"github.com/doordash-oss/agentic-orchestrator/internal/observe"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 	"github.com/doordash-oss/agentic-orchestrator/internal/skilldef"
 	"github.com/doordash-oss/agentic-orchestrator/internal/utilskill"
 )
@@ -32,10 +34,11 @@ import (
 // contextReadTracker holds the directories and observer needed to track
 // reads of KB, skill, and guideline files during agent sessions.
 type contextReadTracker struct {
-	KBBaseDir     string
-	SkillsDir     string
-	GuidelinesDir string
-	Observer      *observe.Observer
+	KBBaseDir         string
+	SkillsDir         string
+	GuidelinesDir     string
+	ExternalSkillDirs []string
+	Observer          *observe.Observer
 }
 
 // install sets an onToolAllowed callback on the session that emits
@@ -51,7 +54,7 @@ func (t *contextReadTracker) install(sess interface {
 		if read.FilePath == "" {
 			return
 		}
-		category, ok := classifyContextRead(read.FilePath, t.KBBaseDir, t.SkillsDir, t.GuidelinesDir)
+		category, ok := classifyContextRead(read.FilePath, t.KBBaseDir, t.SkillsDir, t.GuidelinesDir, t.ExternalSkillDirs)
 		if !ok {
 			return
 		}
@@ -84,10 +87,11 @@ func (pr *PhaseRunner) installContextReadTracker(sess interface {
 	SetOnFileRead(func(llm.FileReadEvent))
 }, sc observe.SpanContext, phase, sessionID, stateDir string) {
 	tracker := &contextReadTracker{
-		KBBaseDir:     filepath.Join(filepath.Dir(stateDir), "knowledge-base"),
-		SkillsDir:     pr.SkillsDir,
-		GuidelinesDir: pr.GuidelinesDir,
-		Observer:      pr.Observer,
+		KBBaseDir:         filepath.Join(filepath.Dir(stateDir), "knowledge-base"),
+		SkillsDir:         pr.SkillsDir,
+		GuidelinesDir:     pr.GuidelinesDir,
+		ExternalSkillDirs: pr.skillFilter().Dirs(),
+		Observer:          pr.Observer,
 	}
 	tracker.install(sess, sc, phase, sessionID)
 }
@@ -162,7 +166,7 @@ func (pr *PhaseRunner) installSubagentProgressTracker(sess interface {
 // classifyContextRead determines if a file path is a KB, skill, or guideline
 // file. Returns the category ("kb", "skill", "guideline") and true, or "" and
 // false if the path doesn't match any context directory.
-func classifyContextRead(filePath, kbBaseDir, skillsDir, guidelinesDir string) (category string, ok bool) {
+func classifyContextRead(filePath, kbBaseDir, skillsDir, guidelinesDir string, externalSkillDirs []string) (category string, ok bool) {
 	if kbBaseDir != "" && strings.HasPrefix(filePath, kbBaseDir) {
 		return "kb", true
 	}
@@ -172,7 +176,30 @@ func classifyContextRead(filePath, kbBaseDir, skillsDir, guidelinesDir string) (
 	if guidelinesDir != "" && strings.HasPrefix(filePath, guidelinesDir) {
 		return "guideline", true
 	}
+	for _, dir := range externalSkillDirs {
+		if pathWithin(filePath, dir) {
+			return "skill", true
+		}
+	}
 	return "", false
+}
+
+// pathWithin reports whether filePath is dir or a file inside it.
+// A sibling such as dir+"-extra" does not match.
+func pathWithin(filePath, dir string) bool {
+	if filePath == "" || dir == "" {
+		return false
+	}
+	filePath = filepath.Clean(filePath)
+	dir = filepath.Clean(dir)
+	if filePath == dir {
+		return true
+	}
+	sep := string(os.PathSeparator)
+	if !strings.HasSuffix(dir, sep) {
+		dir += sep
+	}
+	return strings.HasPrefix(filePath, dir)
 }
 
 // buildPreflightInput projects KBInfo / phase / skillsDir / guidelinesDir
@@ -180,13 +207,13 @@ func classifyContextRead(filePath, kbBaseDir, skillsDir, guidelinesDir string) (
 // Centralized so all phase-specific prompt builders share one source of
 // truth for which orientation surfaces fire and how Skills / Guidelines
 // are resolved.
-func buildPreflightInput(phase feature.Phase, skillsDir string, kbInfos []KBInfo, guidelinesDir string, requiredSkillNames ...string) prompts.PreflightInput {
+func buildPreflightInput(phase feature.Phase, skillsDir string, kbInfos []KBInfo, guidelinesDir string, filter skillcatalog.Filter, requiredSkillNames ...string) prompts.PreflightInput {
 	kbViews := make([]prompts.KBView, 0, len(kbInfos))
 	for _, kb := range kbInfos {
 		kbViews = append(kbViews, prompts.KBView{Name: kb.Name, IndexPath: kb.IndexPath, RootDir: kb.RootDir})
 	}
-	skillViews := resolveAdditionalSkills(phase, skillsDir, requiredSkillNames...)
-	guidelineViews := resolveGuidelineViews(guidelinesDir)
+	skillViews := resolveAdditionalSkills(phase, skillsDir, filter, requiredSkillNames...)
+	guidelineViews := resolveGuidelineViews(guidelinesDir, filter)
 	return prompts.PreflightInput{
 		KBInfos:       kbViews,
 		Guidelines:    guidelineViews,
@@ -206,7 +233,7 @@ func buildPreflightInput(phase feature.Phase, skillsDir string, kbInfos []KBInfo
 // the agent does not have to guess directory names — each language's
 // top-level index.md is presented as an absolute path the agent can Read
 // directly when the language is relevant to the target repository.
-func resolveGuidelineViews(guidelinesDir string) []prompts.GuidelineView {
+func resolveGuidelineViews(guidelinesDir string, filter skillcatalog.Filter) []prompts.GuidelineView {
 	if guidelinesDir == "" {
 		return nil
 	}
@@ -216,6 +243,9 @@ func resolveGuidelineViews(guidelinesDir string) []prompts.GuidelineView {
 	}
 	names := make([]string, 0, len(defs))
 	for name := range defs {
+		if !filter.AllowsGuideline(name) {
+			continue
+		}
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -235,8 +265,8 @@ func resolveGuidelineViews(guidelinesDir string) []prompts.GuidelineView {
 // excluding skills that the caller promotes to mandatory guidance.
 // Returns nil when skillsDir is empty (no skill paths to advertise) or
 // when the phase has no registered utility skills.
-func resolveAdditionalSkills(phase feature.Phase, skillsDir string, excludedNames ...string) []prompts.SkillView {
-	if skillsDir == "" {
+func resolveAdditionalSkills(phase feature.Phase, skillsDir string, filter skillcatalog.Filter, excludedNames ...string) []prompts.SkillView {
+	if skillsDir == "" && len(filter.External) == 0 {
 		return nil
 	}
 	names := utilskill.ForPhase(phase)
@@ -253,7 +283,34 @@ func resolveAdditionalSkills(phase feature.Phase, skillsDir string, excludedName
 		}
 		names = filtered
 	}
-	return resolveSkillViews(names, skillsDir)
+	if filter.Active {
+		kept := names[:0]
+		for _, name := range names {
+			if filter.AllowsSkill(name) {
+				kept = append(kept, name)
+			}
+		}
+		names = kept
+	}
+	views := resolveSkillViews(names, skillsDir)
+	for _, skill := range filter.External {
+		views = append(views, prompts.SkillView{
+			Name:        skill.Name,
+			Description: tableCell(skill.Description),
+			Topics:      tableCell(skill.Topics),
+			Path:        skill.Path,
+		})
+	}
+	if len(views) == 0 {
+		return nil
+	}
+	return views
+}
+
+func tableCell(value string) string {
+	value = strings.ReplaceAll(value, "\n", " ")
+	value = strings.ReplaceAll(value, "|", "/")
+	return strings.TrimSpace(value)
 }
 
 // resolveSkillViews resolves named embedded skills into prompt rows.

@@ -166,6 +166,7 @@ func RunPhaseImplementLoop(cfg OrchestratorConfig, sm ports.SessionManager) (*Ph
 		ReviewEffortSource:         cfg.ReviewEffortSource,
 		SkillsDir:                  cfg.SkillsDir,
 		GuidelinesDir:              cfg.GuidelinesDir,
+		SkillFilter:                cfg.SkillFilter,
 		Observer:                   cfg.Observer,
 		OnVerificationProgress:     cfg.OnVerificationProgress,
 		RoundCommitHook:            cfg.RoundCommitHook,

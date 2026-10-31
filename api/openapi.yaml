@@ -675,10 +675,17 @@ paths:
         root must exist and resolve to a directory, otherwise the request fails
         with a 400 invalid_workspace_root error naming each offending path in
         error.target.invalid_workspace_roots and nothing is persisted.
+        skills.roots lists extra skill folders. A folder that is not already
+        configured must exist and be a directory, or the request fails with
+        400 and nothing is persisted. A folder already in the saved list is
+        kept when it cannot be opened. skills.disabled turns off a shipped
+        guideline or optional built-in skill by catalog id. skills.enabled
+        turns on a skill discovered outside the binary by catalog id.
+        Phase skills stay on when their id is listed in disabled.
       parameters:
         - $ref: "#/components/parameters/TrustedMutationHeader"
       requestBody:
-        $ref: "#/components/requestBodies/JSONMutation"
+        $ref: "#/components/requestBodies/RuntimeConfigPatchRequest"
       responses:
         "200":
           $ref: "#/components/responses/RuntimeConfigUpdateResponse"
@@ -2025,6 +2032,12 @@ components:
           schema:
             type: object
             additionalProperties: true
+    RuntimeConfigPatchRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RuntimeConfigPatch"
     ProviderModelRefreshRequest:
       required: true
       content:
@@ -4039,6 +4052,8 @@ components:
               type: array
               items:
                 type: string
+            skill_catalog:
+              $ref: "#/components/schemas/SkillCatalog"
     ModelCatalogResponse:
       allOf:
         - $ref: "#/components/schemas/JSONResponse"
@@ -5302,6 +5317,75 @@ components:
       properties:
         mute_feature_input:
           type: boolean
+    SkillCatalogEntry:
+      type: object
+      required: [id, name, description, kind, origin, path, enabled, toggleable]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        kind:
+          type: string
+        origin:
+          type: string
+        path:
+          type: string
+        enabled:
+          type: boolean
+        toggleable:
+          type: boolean
+    SkillPolicy:
+      type: object
+      description: >-
+        Switch list for language guidelines and skills. roots are extra
+        folders scanned in addition to the default user skills folder.
+        disabled lists catalog ids of shipped guidelines and optional
+        built-in skills to turn off. enabled lists catalog ids of
+        discovered skills to turn on.
+      properties:
+        roots:
+          type: array
+          items:
+            type: string
+        disabled:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: array
+          items:
+            type: string
+    RuntimeConfigPatch:
+      type: object
+      additionalProperties: true
+      properties:
+        workspace_roots:
+          type: array
+          items:
+            type: string
+        notifications:
+          $ref: "#/components/schemas/NotificationConfig"
+        skills:
+          $ref: "#/components/schemas/SkillPolicy"
+    SkillCatalog:
+      type: object
+      required: [entries]
+      properties:
+        roots:
+          type: array
+          items:
+            type: string
+        implicit_roots:
+          type: array
+          items:
+            type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillCatalogEntry"
     Observability:
       type: object
       required: [events, otel_enabled]

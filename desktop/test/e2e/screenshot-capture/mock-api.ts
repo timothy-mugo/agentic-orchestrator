@@ -1692,6 +1692,8 @@ function makeMockApi(
     getReadiness: () => Promise.resolve(READY_SNAPSHOT),
     refreshReadiness: () => Promise.resolve(READY_SNAPSHOT),
     pickWorkspaceDirectory: () => Promise.resolve({ path: null } as PickedDirectory),
+    getSkillCatalog: () => Promise.resolve({ roots: [], implicitRoots: [], entries: [] }),
+    updateSkillPolicy: () => Promise.resolve({ roots: [], implicitRoots: [], entries: [] }),
     addWorkspaceRoot: () => Promise.resolve(READY_SNAPSHOT),
     removeWorkspaceRoot: () => Promise.resolve(READY_SNAPSHOT),
     reorderWorkspaceRoots: () => Promise.resolve(READY_SNAPSHOT),

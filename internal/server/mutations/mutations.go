@@ -499,7 +499,20 @@ func (t *mutationTarget) RuntimeConfig(req serverruntime.RuntimeConfigMutationRe
 		cfg.Notifications.MuteFeatureInput = req.Notifications.MuteFeatureInput
 		changed = true
 	}
-	if err := config.Save(t.configPath, cfg); err != nil {
+	if req.Skills != nil {
+		next := config.SkillsConfig{
+			Roots:    append([]string(nil), req.Skills.Roots...),
+			Disabled: append([]string(nil), req.Skills.Disabled...),
+			Enabled:  append([]string(nil), req.Skills.Enabled...),
+		}
+		current := cfg.CloneSkills()
+		if !slices.Equal(current.Roots, next.Roots) || !slices.Equal(current.Disabled, next.Disabled) || !slices.Equal(current.Enabled, next.Enabled) {
+			changed = true
+		}
+		if err := cfg.CommitSkills(t.configPath, next); err != nil {
+			return serverruntime.RuntimeConfigUpdateResponse{}, err
+		}
+	} else if err := config.Save(t.configPath, cfg); err != nil {
 		return serverruntime.RuntimeConfigUpdateResponse{}, err
 	}
 	t.cfg = cfg

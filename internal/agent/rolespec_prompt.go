@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 
 	"github.com/doordash-oss/agentic-orchestrator/internal/agent/prompts"
+	"github.com/doordash-oss/agentic-orchestrator/internal/skillcatalog"
 )
 
 // implementSystemPromptInput carries runtime values for the
@@ -31,6 +32,7 @@ type implementSystemPromptInput struct {
 	AskingClause   string
 	CompletionTool string
 	Frontend       bool
+	SkillFilter    skillcatalog.Filter
 }
 
 // roleSystemPromptInput carries runtime values for a RoleSpec-backed
@@ -54,6 +56,7 @@ type roleSystemPromptInput struct {
 	// bounded helpers, which run with no configured sub-agents. Defaults false
 	// so every other session keeps the clause.
 	SuppressSubagents bool
+	SkillFilter       skillcatalog.Filter
 }
 
 // buildImplementSystemPrompt renders the RoleSpec-backed system prompt for
@@ -80,6 +83,7 @@ func buildImplementSystemPrompt(in implementSystemPromptInput) string {
 		CompletionTool:          in.CompletionTool,
 		RequiredSkillNames:      requiredSkillNames,
 		RequiredSkillConditions: requiredSkillConditions,
+		SkillFilter:             in.SkillFilter,
 	})
 }
 
@@ -103,6 +107,15 @@ func buildRoleSystemPrompt(in roleSystemPromptInput) string {
 	}
 
 	requiredSkills := resolveSkillViews(in.RequiredSkillNames, in.SkillsDir)
+	if in.SkillFilter.Active {
+		kept := requiredSkills[:0]
+		for _, skill := range requiredSkills {
+			if in.SkillFilter.AllowsSkill(skill.Name) {
+				kept = append(kept, skill)
+			}
+		}
+		requiredSkills = kept
+	}
 	for i := range requiredSkills {
 		requiredSkills[i].Condition = in.RequiredSkillConditions[requiredSkills[i].Name]
 	}
@@ -111,7 +124,7 @@ func buildRoleSystemPrompt(in roleSystemPromptInput) string {
 		SkillPath:            skillPath,
 		RequiredSkills:       requiredSkills,
 		ArtifactPreflight:    artifactPreflightCommand(spec, in.IterationDir),
-		Preflight:            buildPreflightInput(spec.Phase, in.SkillsDir, in.KBInfos, in.GuidelinesDir, in.RequiredSkillNames...),
+		Preflight:            buildPreflightInput(spec.Phase, in.SkillsDir, in.KBInfos, in.GuidelinesDir, in.SkillFilter, in.RequiredSkillNames...),
 		ReadOnlyOutsideRoots: spec.ReadOnlyOutsideRoots,
 		SubagentsAvailable:   !in.SuppressSubagents,
 		RetryOutcomeAllowed:  spec.IterationState,

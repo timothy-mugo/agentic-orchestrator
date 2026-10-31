@@ -31,6 +31,9 @@ import {
 import {
   AbsolutePathSchema,
   type InitRepositoryRequest,
+  type SkillCatalog,
+  type SkillCatalogEntry,
+  type SkillPolicy,
   type PickedDirectory,
   type ReadinessSnapshot,
   type RuntimeReadinessSnapshot,
@@ -221,6 +224,39 @@ export class SetupService {
     return this.getReadiness();
   }
 
+  /** The skill and guideline list, with each switch already applied. */
+  async getSkillCatalog(): Promise<SkillCatalog> {
+    const body = await this.api('/api/v1/config/runtime');
+    return toSkillCatalog(validateWithSchema(body, RuntimeConfigResponseSchema));
+  }
+
+  /** Replaces the switch list. The returned catalog is the server's view after the save. */
+  async updateSkillPolicy(policy: SkillPolicy): Promise<SkillCatalog> {
+    const before = this.captureIdentity();
+    this.assertSameServer(before);
+    await this.api('/api/v1/config/runtime', {
+      method: 'PATCH',
+      body: {
+        skills: {
+          roots: policy.roots,
+          disabled: policy.disabled,
+          enabled: policy.enabled,
+        },
+      },
+    });
+    this.assertSameServer(before);
+    try {
+      const catalog = await this.getSkillCatalog();
+      this.assertSameServer(before);
+      return catalog;
+    } catch (err) {
+      if (err instanceof CanonicalErrorException && err.canonical.code === 'E_SERVER_SWITCHED') {
+        throw err;
+      }
+      throw new CanonicalErrorException(buildCanonicalError('E_SKILL_CATALOG_REFRESH'));
+    }
+  }
+
   /** Repository choices always come from fresh server discovery. */
   async listRepositories(): Promise<RepositoryState[]> {
     const snapshot = await this.getReadiness();
@@ -245,6 +281,55 @@ export class SetupService {
   private assertSameServer(before: ServerIdentity): void {
     assertSameServer(before, this.deps.identity);
   }
+}
+
+function catalogFieldFits(value: string, min: number, max: number): boolean {
+  return value.length >= min && value.length <= max;
+}
+
+function toSkillCatalog(server: {
+  skill_catalog?: {
+    roots?: string[];
+    implicit_roots?: string[];
+    entries: {
+      id: string;
+      name: string;
+      description: string;
+      kind: string;
+      origin: string;
+      path: string;
+      enabled: boolean;
+      toggleable: boolean;
+    }[];
+  };
+}): SkillCatalog {
+  const catalog = server.skill_catalog;
+  const entries: SkillCatalogEntry[] = (catalog?.entries ?? []).flatMap((entry) => {
+    if (entry.kind !== 'skill' && entry.kind !== 'guideline') return [];
+    if (entry.origin !== 'builtin' && entry.origin !== 'external') return [];
+    if (!catalogFieldFits(entry.id, 1, 200)) return [];
+    if (!catalogFieldFits(entry.name, 0, 200)) return [];
+    if (!catalogFieldFits(entry.path, 0, 4096)) return [];
+    return [
+      {
+        id: entry.id,
+        name: entry.name,
+        description: entry.description.slice(0, 4000),
+        kind: entry.kind,
+        origin: entry.origin,
+        path: entry.path,
+        enabled: entry.enabled,
+        toggleable: entry.toggleable,
+      },
+    ];
+  });
+  return {
+    roots: (catalog?.roots ?? []).filter((root) => catalogFieldFits(root, 0, 4096)),
+    implicitRoots: (catalog?.implicit_roots ?? []).filter((root) =>
+      catalogFieldFits(root, 0, 4096),
+    ),
+    entries,
+  };
 }
 
 /** Maps the validated server readiness response to the renderer-facing shape.

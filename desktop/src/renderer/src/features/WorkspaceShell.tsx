@@ -16,7 +16,7 @@ limitations under the License.
 
 /**
  * The readiness-gated main surface: a translucent Bench sidebar — the pinned
- * Supervisor row plus five lane-grouped sections of every feature — with
+ * Supervisor row plus every feature grouped under its project folder — with
  * exactly one content pane mounted at a time: the Supervisor page (home) or
  * one feature's cockpit. Feature creation descends over that pane as a
  * window-modal sheet reached from the toolbar's "New feature" on every page —
@@ -86,7 +86,7 @@ import { CreateFeatureForm } from './CreateFeatureForm';
 import { useCreationDrafts, useCreationDraftEntry } from './creationDrafts';
 import { FeatureCockpit } from './FeatureCockpit';
 import { PipRail } from '../components/Pip';
-import { NewConversationIcon, SupervisorIcon } from '../components/icons';
+import { FolderIcon, NewConversationIcon, SupervisorIcon } from '../components/icons';
 import { updateNoticePending } from '../components/UpdatePopover';
 import {
   emptyAttentionDrafts,
@@ -120,9 +120,9 @@ import {
   LANES,
   classifyFeaturesByLaneWithAttention,
   classifyLane,
-  laneLabel,
   type Lane,
 } from './laneClassification';
+import { groupFeaturesByProject, type ProjectCatalogEntry } from './projectGrouping';
 import { RecoverySheet } from './RecoverySheet';
 import { SetupWizard } from '../components/wizard/SetupWizard';
 import { setupBannerIssue } from '../wizard/deriveWizardState';
@@ -376,14 +376,10 @@ export function WorkspaceShell({
   const [creationWarnings, setCreationWarnings] = useState<
     Record<string, readonly CanonicalError[]>
   >({});
-  const [expandedLanes, setExpandedLanes] = useState<Record<Lane, boolean>>({
-    failed: true,
-    waiting: true,
-    running: true,
-    published: true,
-    done: false,
-    'at-rest': true,
-  });
+  const [catalog, setCatalog] = useState<ProjectCatalogEntry[]>([]);
+  /** Explicit open/closed choices. An untouched folder follows its default:
+   * open when it has features, closed when it is an empty project. */
+  const [projectOpen, setProjectOpen] = useState<Record<string, boolean>>({});
 
   // Read by the ⌘2-9/⌘⌃S global listener below, which is registered exactly
   // once on mount: the listener itself must stay referentially stable across
@@ -398,9 +394,9 @@ export function WorkspaceShell({
   }>({ featureOrder: [], navigateFeature: () => {}, toggleSidebar: () => {} });
 
   // ⌘2-9: the 1st-8th feature by absolute sidebar position, counting across
-  // every lane regardless of its disclosure state (unlike Arrow/Home/End,
-  // which only ever land on a visible row); the pinned Supervisor row is not
-  // numbered. ⌘1 — Supervisor — stays entirely on the native-menu →
+  // every project folder regardless of its disclosure state (unlike
+  // Arrow/Home/End, which only ever land on a visible row); the pinned
+  // Supervisor row is not numbered. ⌘1 — Supervisor — stays entirely on the native-menu →
   // routeRequest("home") path.
   // ⌘⌃S toggles the same persisted collapse the toolbar button does, and ⌘N
   // opens the creation sheet the File item and the palette entry open. All of
@@ -516,6 +512,25 @@ export function WorkspaceShell({
         if (isCurrent()) setList({ phase: 'error', error: parseIpcError(err) });
       },
     );
+    // The project folders are the repository catalog. A failure here only
+    // hides empty projects: features still group under the repo names they
+    // already carry. Wrapped so a missing method cannot skip the list above.
+    void Promise.resolve()
+      .then(() => window.agentico.listRepositories())
+      .then(
+        (repositories) => {
+          if (!isCurrent()) return;
+          setCatalog(
+            repositories.map((repository) => ({
+              name: repository.name,
+              path: repository.path,
+            })),
+          );
+        },
+        () => {
+          if (isCurrent()) setCatalog([]);
+        },
+      );
   }, [refineDetails]);
 
   // The sidebar's feature list follows the authoritative server state: fetch
@@ -809,23 +824,22 @@ export function WorkspaceShell({
       ? { kind: 'feature', featureId: activeFeatureId }
       : { kind: 'supervisor' };
 
-  const toggleLane = (lane: Lane, expanded: boolean) => {
-    setExpandedLanes((current) => ({ ...current, [lane]: expanded }));
-  };
-
   const features = list.phase === 'loaded' ? list.features : [];
   const laneGroups = classifyFeaturesByLaneWithAttention(features, attentionByFeature);
-  const counts = Object.fromEntries(LANES.map((lane) => [lane, laneGroups[lane].length])) as Record<
-    Lane,
-    number
-  >;
+  const laneOf = new Map<string, Lane>();
+  for (const lane of LANES) {
+    for (const feature of laneGroups[lane]) laneOf.set(feature.id, lane);
+  }
+  const projectFolders = groupFeaturesByProject(features, catalog);
 
-  // The absolute feature order ⌘2-9 count by: every lane in display order,
-  // every feature within it — regardless of which lanes are currently
-  // expanded. (Arrow/Home/End instead walk the DOM directly, at click time,
-  // so they only ever land on what a `<details>` disclosure state is
-  // actually showing, the Supervisor row included.)
-  const featureOrder = LANES.flatMap((lane) => laneGroups[lane].map((feature) => feature.id));
+  // The absolute feature order ⌘2-9 count by: every project in display
+  // order, every feature within it — regardless of which folders are
+  // currently expanded. (Arrow/Home/End instead walk the DOM directly, at
+  // click time, so they only ever land on what a `<details>` disclosure
+  // state is actually showing, the Supervisor row included.)
+  const featureOrder = projectFolders.flatMap((folder) =>
+    folder.features.map((feature) => feature.id),
+  );
 
   const selectedFeature =
     selection.kind === 'feature'
@@ -845,7 +859,7 @@ export function WorkspaceShell({
    * Roving tabindex: ArrowUp/ArrowDown/Home/End move focus AND selection
    * together ("selection follows focus") through every row the DOM
    * currently exposes as `role="option"` — rows inside a collapsed
-   * `<details>` lane stay in the DOM (so ⌘2-9 above can still reach them)
+   * `<details>` project stay in the DOM (so ⌘2-9 above can still reach them)
    * but are excluded here by checking each row's nearest `<details>`
    * ancestor, matching the disclosure-aware roving-focus pattern already
    * used for the run-cohort roster in CurrentRunInspection.
@@ -938,37 +952,55 @@ export function WorkspaceShell({
             selected={selection.kind === 'supervisor'}
             onSelect={selectSupervisor}
           />
-          {LANES.map((lane) => {
-            const laneFeatures = laneGroups[lane];
-            if (laneFeatures.length === 0) return null;
-            return (
-              <details
-                key={lane}
-                className="sidebar__lane"
-                open={expandedLanes[lane]}
-                onToggle={(event) => toggleLane(lane, event.currentTarget.open)}
-              >
-                <summary className="sidebar__lane-summary">
-                  <span>{laneLabel(lane)}</span>
-                  <span className="sidebar__lane-count" aria-hidden="true">
-                    {counts[lane]}
-                  </span>
-                </summary>
-                <div role="group" aria-label={laneLabel(lane)} className="sidebar__lane-rows">
-                  {laneFeatures.map((feature) => (
-                    <SidebarFeatureRow
-                      key={feature.id}
-                      lane={lane}
-                      feature={feature}
-                      attentionKinds={attentionKindsByFeature.get(feature.id)}
-                      selected={selection.kind === 'feature' && selection.featureId === feature.id}
-                      onSelect={() => selectFeature(feature.id)}
-                    />
-                  ))}
-                </div>
-              </details>
-            );
-          })}
+          {projectFolders.length > 0 ? (
+            <div className="sidebar__projects">
+              <div className="sidebar__projects-label">Projects</div>
+              {projectFolders.map((folder) => {
+                const open = projectOpen[folder.id] ?? folder.features.length > 0;
+                return (
+                  <details
+                    key={folder.id}
+                    className="sidebar__project"
+                    open={open}
+                    onToggle={(event) => {
+                      const next = event.currentTarget.open;
+                      setProjectOpen((current) =>
+                        current[folder.id] === next ? current : { ...current, [folder.id]: next },
+                      );
+                    }}
+                  >
+<summary
+  className="sidebar__project-summary"
+  title={folder.path}
+  aria-label={folder.accessibleName}
+>
+                    <div
+                      role="group"
+                      aria-label={folder.accessibleName}
+                      className="sidebar__project-rows"
+                    >
+                      {folder.features.length === 0 ? (
+                        <p className="sidebar__project-empty">No features</p>
+                      ) : (
+                        folder.features.map((feature) => (
+                          <SidebarFeatureRow
+                            key={feature.id}
+                            lane={laneOf.get(feature.id) ?? 'at-rest'}
+                            feature={feature}
+                            attentionKinds={attentionKindsByFeature.get(feature.id)}
+                            selected={
+                              selection.kind === 'feature' && selection.featureId === feature.id
+                            }
+                            onSelect={() => selectFeature(feature.id)}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
         {/* Only a failed LIST is surfaced: the Supervisor page stays usable
          * beneath it, and Retry reloads the list in place. */}
@@ -1307,7 +1339,7 @@ function SidebarSupervisorRow({ selected, onSelect }: { selected: boolean; onSel
   );
 }
 
-/** A single row in the Bench sidebar's listbox: a lane member. */
+/** A single row in the Bench sidebar's listbox: one feature inside a project. */
 function SidebarRow({
   id,
   label,

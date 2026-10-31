@@ -20,8 +20,9 @@ limitations under the License.
  * bundled binary as AGENTICO_BIN and the world's runtime directory as
  * AGENTICO_RUNTIME_DIR) creates, configures and starts a feature through the
  * packaged binary's `agentico api` helper, and the sidebar follows the live
- * stream those mutations publish — a new At rest row, then the same row in
- * Running — while the Supervisor row stays selected and nothing reloads.
+ * stream those mutations publish — a new row under helper-lab, then the
+ * same row's running mark — while the Supervisor row stays selected and
+ * nothing reloads.
  * The bearer token from the discovery file must surface nowhere the
  * conversation reaches.
  */
@@ -60,7 +61,7 @@ const FEATURE_NAME = 'Helper Sidebar Feature';
 /** Set on the renderer's window before the first turn; a reload would clear it. */
 const NO_RELOAD_MARK = '__supervisorHelperSidebarNoReload';
 
-test('supervisor helper sidebar: helper-created feature appears At rest, then moves to Running, live', async ({}, testInfo) => {
+test('supervisor helper sidebar: helper-created feature appears under its project, then shows running, live', async ({}, testInfo) => {
   const transcript = new Transcript(RUN_NAME, 'Supervisor operates a feature through the helper');
   const world = createWorld(RUN_NAME, {
     auth: { loggedIn: true, authMethod: 'oauth', email: 'e2e@example.invalid' },
@@ -110,11 +111,14 @@ test('supervisor helper sidebar: helper-created feature appears At rest, then mo
     expect(featureId, 'the create helper call returned a feature id').not.toBe('');
     expect(helperExits(world)).toEqual(['1:0', '2:0', '3:0', '4:0']);
 
-    const atRestRow = lane(page, 'At rest').getByRole('option', { name: FEATURE_NAME });
-    await expect(atRestRow).toBeVisible({ timeout: 30_000 });
-    await expect(atRestRow.locator('.sidebar__row-subline')).toHaveText('Created');
-    // The row's identity is the feature id, so the Running row below is this row.
-    const rowId = await atRestRow.getAttribute('id');
+    const featureRow = featuresListbox(page)
+      .getByRole('group', { name: 'helper-lab' })
+      .getByRole('option', { name: FEATURE_NAME });
+    await expect(featureRow).toBeVisible({ timeout: 30_000 });
+    await expect(featureRow.locator('.sidebar__row-subline')).toHaveText('Created');
+    await expect(featureRow.locator('.sidebar__row-glyph')).toHaveAttribute('data-tone', 'quiet');
+    // The row's identity is the feature id, so the running mark below is this row.
+    const rowId = await featureRow.getAttribute('id');
     expect(rowId).toBe(`sidebar-row-${featureId}`);
     await expect(featureRows(page)).toHaveCount(1);
     await expect(supervisorRow(page)).toHaveAttribute('aria-selected', 'true');
@@ -123,20 +127,22 @@ test('supervisor helper sidebar: helper-created feature appears At rest, then mo
     const created = await page.evaluate((id) => window.agentico.getFeature(id), featureId);
     expect(created.name).toBe(FEATURE_NAME);
     await evidenceShot(handle, 'supervisor-helper-sidebar-at-rest');
-    transcript.step(`"${FEATURE_NAME}" (${featureId}) appeared At rest with the Created sub-line`);
+    transcript.step(
+      `"${FEATURE_NAME}" (${featureId}) appeared under helper-lab with the Created sub-line`,
+    );
 
-    transcript.section('The stub starts the feature; the same row moves to Running');
+    transcript.section('The stub starts the feature; the same row shows it is running');
     await sendMessage(page, `Start it now ${SUPERVISOR_E2E_MARKERS.operateStart}`);
     await expect(conversation(page)).toContainText(SUPERVISOR_E2E_OPERATE_STARTED_REPLY, {
       timeout: 60_000,
     });
     await expectReady(page);
     expect(helperExits(world)).toEqual(['1:0', '2:0', '3:0', '4:0', '5:0']);
-    const runningRow = lane(page, 'Running').getByRole('option', { name: FEATURE_NAME });
-    await expect(runningRow).toBeVisible({ timeout: 60_000 });
-    await expect(lane(page, 'At rest').getByRole('option', { name: FEATURE_NAME })).toHaveCount(0);
+    await expect(featureRow.locator('.sidebar__row-glyph')).toHaveAttribute('data-tone', 'progress', {
+      timeout: 60_000,
+    });
     await expect(featureRows(page)).toHaveCount(1);
-    await expect(runningRow).toHaveAttribute('id', rowId!);
+    await expect(featureRow).toHaveAttribute('id', rowId!);
     await expect(supervisorRow(page)).toHaveAttribute('aria-selected', 'true');
     expect(await notReloaded(page)).toBe(true);
     // One supervisor session plus the one workflow session the start launched.
@@ -146,7 +152,7 @@ test('supervisor helper sidebar: helper-created feature appears At rest, then mo
       60_000,
     );
     await evidenceShot(handle, 'supervisor-helper-sidebar-running');
-    transcript.step('the row left At rest and appears in Running; Supervisor stayed selected');
+    transcript.step('the same helper-lab row is running; Supervisor stayed selected');
 
     transcript.section('The conversation carries the helper tool records');
     const page1 = await page.evaluate(() =>
@@ -247,13 +253,9 @@ function featuresListbox(page: Page): Locator {
   return page.getByRole('listbox', { name: 'Features' });
 }
 
-/** Feature rows only: every option inside a lane group. */
+/** Feature rows only: every option inside a project folder. */
 function featureRows(page: Page): Locator {
   return featuresListbox(page).getByRole('group').getByRole('option');
-}
-
-function lane(page: Page, name: string): Locator {
-  return featuresListbox(page).getByRole('group', { name, exact: true });
 }
 
 function conversation(page: Page): Locator {

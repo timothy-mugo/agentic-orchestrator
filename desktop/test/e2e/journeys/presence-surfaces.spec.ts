@@ -17,10 +17,11 @@ limitations under the License.
 /**
  * Presence-surfaces journey: one durable failure (a seeded
  * iteration_budget_exhausted record) must appear as one owner plus matching
- * indicators everywhere — the Failed sidebar lane with the catalog title as
- * its sub-line, the bell and its single pending item, the inbox row and its
- * detail, a chip that focuses the owning card, and exactly one background
- * notification — and everything clears together after a successful restart.
+ * indicators everywhere — the feature's sidebar row under its project, with
+ * the catalog title as its sub-line, the bell and its single pending item,
+ * the inbox row and its detail, a chip that focuses the owning card, and
+ * exactly one background notification — and everything clears together
+ * after a successful restart.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,7 +44,7 @@ test('presence surfaces: one failure, one owner, every surface agrees', async ({
   test.setTimeout(300_000);
   const transcript = new Transcript(
     'presence-surfaces',
-    'Seeded failure → Failed lane, bell, inbox row, focused card, chip, one notification, restart clears all',
+    'Seeded failure → project row, bell, inbox row, focused card, chip, one notification, restart clears all',
   );
   const world = createWorld('presence-surfaces', {
     auth: { loggedIn: true, authMethod: 'oauth', email: 'e2e@example.invalid' },
@@ -95,7 +96,7 @@ test('presence surfaces: one failure, one owner, every surface agrees', async ({
     fs.writeFileSync(runPath, runYaml);
     transcript.step('seeded Failed@implement with an iteration_budget_exhausted record');
 
-    transcript.section('Relaunch; the sidebar groups the failure under Failed');
+    transcript.section('Relaunch; the sidebar shows the failure under presence-lab');
     handle = await launchApp(world, testInfo, { traceName: 'presence-relaunch' });
     const cockpit = handle.page.getByLabel(`Feature ${featureName}`);
     await expect(cockpit).toBeVisible({ timeout: 60_000 });
@@ -112,13 +113,17 @@ test('presence surfaces: one failure, one owner, every surface agrees', async ({
     });
 
     const sidebar = handle.page.getByRole('navigation', { name: 'Feature sidebar' });
-    const failedGroup = sidebar.getByRole('group', { name: 'Failed' });
-    const failedRow = failedGroup.getByRole('option', { name: new RegExp(featureName) });
+    const failedRow = sidebar
+      .getByRole('group', { name: 'presence-lab' })
+      .getByRole('option', { name: new RegExp(featureName) });
     await expect(failedRow).toBeVisible({ timeout: 60_000 });
     await expect(failedRow.locator('.sidebar__row-subline')).toHaveText(
       'Iteration budget exhausted',
     );
-    transcript.step('the Failed lane carries the feature with the catalog title as its sub-line');
+    await expect(failedRow.locator('.sidebar__row-glyph')).toHaveAttribute('data-tone', 'danger');
+    transcript.step(
+      'the presence-lab folder carries the feature with the catalog title as its sub-line',
+    );
 
     // The sidebar row is the one per-feature summary there is: it reads the
     // same away from the feature, on the Supervisor page.
@@ -233,8 +238,12 @@ test('presence surfaces: one failure, one owner, every surface agrees', async ({
     await expect(
       handle.page.getByRole('button', { name: 'Attention inbox, 0 pending' }),
     ).toBeVisible({ timeout: 30_000 });
-    await expect(handle.page.getByRole('group', { name: 'Failed' })).toHaveCount(0);
-    transcript.step('the bell and the Failed lane entry cleared with it');
+    await expect(failedRow).not.toHaveText(/Iteration budget exhausted/);
+    await expect(failedRow.locator('.sidebar__row-glyph')).not.toHaveAttribute(
+      'data-tone',
+      'danger',
+    );
+    transcript.step('the bell and the sidebar failure mark cleared with it');
 
     persistAppLogs(handle, 'presence-surfaces-app-server');
   } finally {

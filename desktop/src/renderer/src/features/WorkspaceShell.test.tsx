@@ -33,6 +33,7 @@ import {
   installAgenticoMock,
   ipcError,
   orphanSessionError,
+  readySnapshot,
 } from '../test/agenticoMock';
 import { dispatchMediaChange, matchMediaState } from '../test/setup';
 import { WorkspaceShell } from './WorkspaceShell';
@@ -143,7 +144,7 @@ describe('WorkspaceShell sidebar', () => {
       'aria-selected',
       'false',
     );
-    // Overview is gone: no row, no lanes region.
+    // Overview is gone: no row, no status-lane region.
     expect(screen.queryByRole('option', { name: 'Overview' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Existing features' })).toBeNull();
     expect(screen.queryByRole('form', { name: /create a feature/i })).not.toBeInTheDocument();
@@ -151,11 +152,12 @@ describe('WorkspaceShell sidebar', () => {
     expect(await screen.findByRole('form', { name: /create a feature/i })).toBeInTheDocument();
   });
 
-  it('groups features into lane sections with correct counts and hides empty lanes', async () => {
+  it('groups features under project folders and starts empty projects collapsed', async () => {
     const blocked = featureSnapshot({
       id: 'blocked1ef567890ab',
       name: 'Broken feature',
       status: 'Implementing',
+      repos: ['lloopd'],
       errors: [blockingRunError('blocked1ef567890ab')],
       actions: [],
     });
@@ -163,6 +165,7 @@ describe('WorkspaceShell sidebar', () => {
       id: 'waiting1ef567890a',
       name: 'Needs a decision',
       status: 'Published',
+      repos: ['lloopd'],
       errors: [needsActionRepositoryError('waiting1ef567890a')],
       actions: [],
     });
@@ -170,6 +173,7 @@ describe('WorkspaceShell sidebar', () => {
       id: 'running1ef567890a',
       name: 'Mid-flight feature',
       status: 'Implementing',
+      repos: ['tcdi-cd'],
       setup: { status: 'done', attempt: 1, tasks: [] },
       actions: [],
     });
@@ -177,29 +181,42 @@ describe('WorkspaceShell sidebar', () => {
       id: 'publish1ef567890a',
       name: 'Shipped feature',
       status: 'Published',
+      repos: ['tcdi-cd'],
       setup: { status: 'done', attempt: 1, tasks: [] },
       actions: [],
     });
     const snapshots = [blocked, waiting, running, published];
-    const mock = installAgenticoMock({ features: snapshots.map(summaryOf) });
+    const mock = installAgenticoMock({
+      features: snapshots.map(summaryOf),
+      readiness: readySnapshot({
+        repositories: [
+          { name: 'lloopd', path: '/work/Lloopd', valid: true, featureReady: true },
+          { name: 'tcdi-cd', path: '/work/tcdi-cd', valid: true, featureReady: true },
+          { name: 'idle-lib', path: '/work/idle-lib', valid: true, featureReady: true },
+        ],
+      }),
+    });
     mock.api.getFeature.mockImplementation((featureId: string) =>
       Promise.resolve(snapshots.find((snapshot) => snapshot.id === featureId) ?? snapshots[0]!),
     );
     render(<WorkspaceShell />);
 
-    await screen.findByRole('option', { name: 'Supervisor' });
-    // Populated lanes render with their count and members.
-    const failedGroup = await screen.findByRole('group', { name: 'Failed' });
-    expect(within(failedGroup).getByText('Broken feature')).toBeInTheDocument();
-    const waitingGroup = screen.getByRole('group', { name: 'Waiting on you' });
-    expect(within(waitingGroup).getByText('Needs a decision')).toBeInTheDocument();
-    const runningGroup = screen.getByRole('group', { name: 'Running' });
-    expect(within(runningGroup).getByText('Mid-flight feature')).toBeInTheDocument();
-    const publishedGroup = screen.getByRole('group', { name: 'Published' });
-    expect(within(publishedGroup).getByText('Shipped feature')).toBeInTheDocument();
-    // Lanes with no members never render a section.
-    expect(screen.queryByRole('group', { name: 'Done' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'At rest' })).not.toBeInTheDocument();
+    const lloopd = await screen.findByRole('group', { name: 'Lloopd' });
+    expect(await within(lloopd).findByText('Broken feature')).toBeVisible();
+    expect(screen.getByText('Projects')).toBeVisible();
+    expect(lloopd.closest('details')).toHaveAttribute('open');
+    expect(within(lloopd).getByText('Needs a decision')).toBeInTheDocument();
+    const tcdi = screen.getByRole('group', { name: 'tcdi-cd' });
+    expect(tcdi.closest('details')).toHaveAttribute('open');
+    expect(within(tcdi).getByText('Mid-flight feature')).toBeInTheDocument();
+    expect(within(tcdi).getByText('Shipped feature')).toBeInTheDocument();
+
+    const idle = screen.getByRole('group', { name: 'idle-lib' });
+    const idleDetails = idle.closest('details');
+    expect(idleDetails).not.toHaveAttribute('open');
+    await userEvent.click(screen.getByText('idle-lib'));
+    expect(idleDetails).toHaveAttribute('open');
+    expect(within(idle).getByText('No features')).toBeVisible();
   });
 
   it.each([
@@ -258,7 +275,7 @@ describe('WorkspaceShell sidebar', () => {
     },
   );
 
-  it('renders a blocking-error feature under the Failed group with the catalog title as its sub-line', async () => {
+  it('renders a blocking-error feature under its project with the catalog title as its sub-line', async () => {
     const broken = featureSnapshot({
       id: FEATURE_ID,
       name: 'Broken feature',
@@ -274,7 +291,7 @@ describe('WorkspaceShell sidebar', () => {
       '[role="option"]',
     )!;
     expect(sidebarRow.closest('details')?.querySelector('summary')?.textContent).toContain(
-      'Failed',
+      'repo-a',
     );
     expect(sidebarRow.querySelector('.sidebar__row-subline')?.textContent).toBe(
       'Iteration budget exhausted',
@@ -287,7 +304,7 @@ describe('WorkspaceShell sidebar', () => {
     }
   });
 
-  it('renders a parked child pass under Waiting on you with the attention record title', async () => {
+  it('renders a parked child pass under its project with the attention record title', async () => {
     const parent = featureSnapshot({
       id: FEATURE_ID,
       name: 'Parent feature',
@@ -323,7 +340,7 @@ describe('WorkspaceShell sidebar', () => {
       '[role="option"]',
     )!;
     expect(sidebarRow.closest('details')?.querySelector('summary')?.textContent).toContain(
-      'Waiting on you',
+      'repo-a',
     );
     expect(sidebarRow.querySelector('.sidebar__row-subline')?.textContent).toBe(
       'Parent worktree is dirty',
@@ -428,7 +445,7 @@ describe('WorkspaceShell sidebar', () => {
     ).not.toBeNull();
   });
 
-  it('keeps exactly one row selected with a roving tabindex across Supervisor and lane rows', async () => {
+  it('keeps exactly one row selected with a roving tabindex across Supervisor and project rows', async () => {
     const feature = featureSnapshot({
       id: FEATURE_ID,
       name: 'Search revamp',
@@ -477,38 +494,6 @@ describe('WorkspaceShell sidebar', () => {
         shell: { setActiveFeature: { serverKey: 'default-runtime', featureId: null } },
       }),
     );
-  });
-
-  it('collapses the Done lane by default while other lanes start expanded', async () => {
-    const done = featureSnapshot({
-      id: FEATURE_ID,
-      name: 'Finished feature',
-      status: 'Done',
-      setup: { status: 'done', attempt: 1, tasks: [] },
-    });
-    const waiting = featureSnapshot({
-      id: SECOND_FEATURE_ID,
-      name: 'Blocked feature',
-      status: 'Published',
-      errors: [needsActionRepositoryError(SECOND_FEATURE_ID)],
-      setup: { status: 'done', attempt: 1, tasks: [] },
-      actions: [],
-    });
-    const snapshots = [done, waiting];
-    const mock = installAgenticoMock({ features: snapshots.map(summaryOf) });
-    mock.api.getFeature.mockImplementation((featureId: string) =>
-      Promise.resolve(snapshots.find((snapshot) => snapshot.id === featureId) ?? snapshots[0]!),
-    );
-    render(<WorkspaceShell />);
-
-    const doneGroup = await screen.findByRole('group', { name: 'Done' });
-    const doneDetails = doneGroup.closest('details');
-    expect(doneDetails).not.toBeNull();
-    expect(doneDetails).not.toHaveAttribute('open');
-
-    const waitingGroup = screen.getByRole('group', { name: 'Waiting on you' });
-    const waitingDetails = waitingGroup.closest('details');
-    expect(waitingDetails).toHaveAttribute('open');
   });
 
   it('removes a deleted feature from the sidebar and returns to Supervisor', async () => {
@@ -1425,20 +1410,22 @@ describe('WorkspaceShell toolbar', () => {
   });
 });
 
-/** One waiting-lane feature (a lane expanded by default) plus one done-lane
- * feature (collapsed by default) — enough to exercise both "visible rows
- * only" (Arrow/Home/End) and "every row regardless of disclosure" (⌘2-9). */
+/** One feature in alpha-lab and one in zeta-lab. Label order puts alpha-lab
+ * first, so ⌘2 is the waiting feature and ⌘3 is the finished one. Tests that
+ * need a collapsed disclosure close zeta-lab themselves. */
 function waitingAndDoneFixture() {
   const waiting = featureSnapshot({
     id: FEATURE_ID,
     name: 'Needs a decision',
     status: 'Failed',
+    repos: ['alpha-lab'],
     actions: [],
   });
   const done = featureSnapshot({
     id: SECOND_FEATURE_ID,
     name: 'Finished feature',
     status: 'Done',
+    repos: ['zeta-lab'],
     setup: { status: 'done', attempt: 1, tasks: [] },
   });
   return [waiting, done] as const;
@@ -1454,15 +1441,15 @@ function installWaitingAndDoneMock() {
 }
 
 describe('WorkspaceShell keyboard shortcuts', () => {
-  it('moves focus and selection together through visible rows with Arrow/Home/End, skipping the collapsed Done row', async () => {
+  it('moves focus and selection together through visible rows with Arrow/Home/End, skipping a collapsed project', async () => {
     installWaitingAndDoneMock();
     render(<WorkspaceShell />);
 
     const supervisorRow = await screen.findByRole('option', { name: 'Supervisor' });
     const waitingRow = await screen.findByRole('option', { name: /Needs a decision/ });
-    // The Done lane starts collapsed; its <details> stays in the DOM (⌘2-9
-    // can still reach it below) but is not `open`.
-    const doneGroup = screen.getByRole('group', { name: 'Done' });
+    // zeta-lab stays in the DOM (⌘2-9 can still reach it) but is not `open`.
+    await userEvent.click(screen.getByText('zeta-lab'));
+    const doneGroup = screen.getByRole('group', { name: 'zeta-lab' });
     expect(doneGroup.closest('details')).not.toHaveAttribute('open');
 
     // The pinned Supervisor row is first and takes part in the roving focus
@@ -1492,19 +1479,23 @@ describe('WorkspaceShell keyboard shortcuts', () => {
     expect(supervisorRow).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('selects a feature by absolute sidebar position with ⌘2-9, including one inside a collapsed lane', async () => {
+  it('selects a feature by absolute sidebar position with ⌘2-9, including one inside a collapsed project', async () => {
     installWaitingAndDoneMock();
     render(<WorkspaceShell />);
-    await screen.findByRole('option', { name: 'Supervisor' });
+    await screen.findByRole('group', { name: 'zeta-lab' });
+    await userEvent.click(screen.getByText('zeta-lab'));
+    expect(screen.getByRole('group', { name: 'zeta-lab' }).closest('details')).not.toHaveAttribute(
+      'open',
+    );
 
-    // ⌘2 → the 1st feature in absolute order (the waiting lane sorts first).
+    // ⌘2 → the 1st feature in absolute order (alpha-lab, the first project).
     fireEvent.keyDown(window, { key: '2', metaKey: true });
     expect(await screen.findByRole('option', { name: /Needs a decision/ })).toHaveAttribute(
       'aria-selected',
       'true',
     );
 
-    // ⌘3 → the 2nd feature, which sits inside the still-collapsed Done lane.
+    // ⌘3 → the 2nd feature, which sits inside the still-collapsed zeta-lab folder.
     fireEvent.keyDown(window, { key: '3', metaKey: true });
     expect(await screen.findByRole('option', { name: /Finished feature/ })).toHaveAttribute(
       'aria-selected',
@@ -1672,7 +1663,7 @@ describe('WorkspaceShell ambient notices', () => {
     expect(contentColumnChildren()).toEqual(baseline);
   });
 
-  it('agrees across the bell badge, the sidebar rows and lane count, and the tray count', async () => {
+  it('agrees across the bell badge, the sidebar rows, and the tray count', async () => {
     const questioned = featureSnapshot({
       id: FEATURE_ID,
       name: 'Needs answers',
@@ -1740,8 +1731,8 @@ describe('WorkspaceShell ambient notices', () => {
     expect(actionableAttentionCount(attentionItems)).toBe(3);
 
     const sidebar = screen.getByRole('navigation', { name: 'Feature sidebar' });
-    const waitingLane = within(sidebar).getByRole('group', { name: 'Waiting on you' });
-    expect(within(waitingLane).getAllByRole('option')).toHaveLength(2);
+    const project = await within(sidebar).findByRole('group', { name: 'repo-a' });
+    expect(within(project).getAllByRole('option')).toHaveLength(2);
     expect(within(sidebar).getByText('Answer 2 questions')).toBeVisible();
     expect(within(sidebar).getByText('Resolve 1 gate')).toBeVisible();
 

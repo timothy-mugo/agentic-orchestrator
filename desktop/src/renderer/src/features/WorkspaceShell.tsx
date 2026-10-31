@@ -969,10 +969,11 @@ export function WorkspaceShell({
                       );
                     }}
                   >
-                    <summary className="sidebar__project-summary" title={folder.path}>
-                      <FolderIcon className="sidebar__project-icon" aria-hidden="true" />
-                      <span className="sidebar__project-name">{folder.label}</span>
-                    </summary>
+<summary
+  className="sidebar__project-summary"
+  title={folder.path}
+  aria-label={folder.accessibleName}
+>
                     <div
                       role="group"
                       aria-label={folder.accessibleName}

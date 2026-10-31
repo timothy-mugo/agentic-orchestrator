@@ -20,7 +20,7 @@ import { openScene, shoot, skipWithoutEvidenceDir } from './evidence-capture';
 /**
  * The secondary surfaces — command palette, settings providers, completion
  * publish, setup wizard, gate sheet, refactor pass — photographed beside the
- * frameless cockpit and the Overview house glyph. Each shot also
+ * frameless cockpit and the Supervisor glyph. Each shot also
  * asserts the migration held on the surface it photographs — a resolved Bench
  * token, a system face, sentence case where the mono-uppercase voice lived —
  * so a capture cannot look plausible while the styling regressed.
@@ -169,11 +169,11 @@ test('secondary surfaces visual evidence', async ({ page }) => {
   );
 
   // 7. The cockpit's Live view reached through the real shell, so the same
-  //    frame carries the bare transcript and the Overview row's house glyph.
+  //    frame carries the bare transcript and the pinned Supervisor glyph.
   await open(page, 'overview-lanes', 'dark', '.sidebar__list');
-  const overviewGlyph = page.locator('#sidebar-overview .sidebar__row-glyph--house');
-  await expect(overviewGlyph).toBeAttached();
-  await expect(overviewGlyph.locator('svg')).toBeAttached();
+  const supervisorGlyph = page.locator('#sidebar-supervisor .sidebar__row-glyph--supervisor');
+  await expect(supervisorGlyph).toBeAttached();
+  await expect(supervisorGlyph.locator('svg')).toBeAttached();
   await page.getByRole('option', { name: /translate README to Italian/i }).click();
   await expect(page.locator('.current-inspection')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.conversation__scroll')).toBeVisible({ timeout: 15_000 });

@@ -36,6 +36,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -345,6 +346,35 @@ function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelP
   const defaultLabel = automaticReviewer
     ? 'Automatic — Claude → OpenCode → Codex'
     : `Default — ${effectiveDefault}${defaultUnavailable ? ' (unavailable)' : ''}`;
+  const selectedOptionVisible =
+    value === '' ||
+    selectedAlias !== undefined ||
+    visibleGroups.some((group) =>
+      group.ids.some((id) => selectionValue(catalogue, group.provider, id) === value),
+    );
+  const tabStopValue = selectedOptionVisible ? value : '';
+  const onListKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const options = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+    );
+    if (options.length === 0) return;
+    const active = options.findIndex(
+      (option) => option === event.currentTarget.ownerDocument.activeElement,
+    );
+    const tabStop = options.findIndex((option) => option.tabIndex === 0);
+    const current = active >= 0 ? active : Math.max(tabStop, 0);
+    const next =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? options.length - 1
+          : event.key === 'ArrowDown'
+            ? (current + 1) % options.length
+            : (current - 1 + options.length) % options.length;
+    event.preventDefault();
+    options[next]?.focus();
+  };
 
   return (
     <ToolbarPopoverAnchor className="model-picker">
@@ -405,13 +435,19 @@ function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelP
                   ))}
                 </div>
               ) : null}
-              <div className="model-picker__list" role="listbox" aria-label="Matching models">
+              <div
+                className="model-picker__list"
+                role="listbox"
+                aria-label="Matching models"
+                onKeyDown={onListKeyDown}
+              >
                 <button
                   type="button"
                   role="option"
                   className="model-picker__option"
                   data-value=""
                   aria-selected={value === ''}
+                  tabIndex={tabStopValue === '' ? 0 : -1}
                   onClick={() => choose('')}
                 >
                   {defaultLabel}
@@ -423,6 +459,7 @@ function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelP
                     className="model-picker__option"
                     data-value={value}
                     aria-selected
+                    tabIndex={tabStopValue === value ? 0 : -1}
                     onClick={() => choose(value)}
                   >
                     {selectedAlias === undefined
@@ -448,6 +485,7 @@ function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelP
                           className="model-picker__option"
                           data-value={optionValue}
                           aria-selected={value === optionValue}
+                          tabIndex={tabStopValue === optionValue ? 0 : -1}
                           onClick={() => choose(optionValue)}
                         >
                           {modelDisplayName(catalogue, group.provider, id)}

@@ -144,6 +144,43 @@ describe('FeatureConfigPanel', () => {
     );
   });
 
+  it('navigates model options with a roving tab stop and commits keyboard selection', async () => {
+    const mock = installAgenticoMock();
+    mock.api.getFeatureConfig.mockResolvedValue(SNAPSHOT);
+    mock.api.getModelCatalogue.mockResolvedValue(CATALOGUE);
+    render(<FeatureConfigPanel featureId="feat-1" />);
+    const user = userEvent.setup();
+
+    await screen.findByLabelText('Implementation model');
+    const list = await openModels(user, 'Implementation model');
+    const options = within(list).getAllByRole('option');
+    const selected = within(list).getByRole('option', { name: /Opus/ });
+    const defaultOption = within(list).getByRole('option', { name: /Default —/ });
+    const codexOption = within(list).getByRole('option', { name: /GPT A/ });
+    expect(options.filter((option) => option.tabIndex === 0)).toEqual([selected]);
+
+    await user.keyboard('{Tab}{Tab}{Tab}{Tab}');
+    expect(selected).toHaveFocus();
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    expect(defaultOption).toHaveFocus();
+    await user.keyboard('{ArrowUp}');
+    expect(codexOption).toHaveFocus();
+    await user.keyboard('{Home}');
+    expect(defaultOption).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(codexOption).toHaveFocus();
+    expect(list).toBeInTheDocument();
+
+    await user.keyboard('{Enter}');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Implementation model')).toHaveAttribute(
+        'data-value',
+        'codex:gpt-a',
+      ),
+    );
+    expect(screen.queryByRole('listbox', { name: 'Matching models' })).toBeNull();
+  });
+
   it('marks a workspace default as unavailable when it is absent from live discovery', async () => {
     const mock = installAgenticoMock();
     mock.api.getFeatureConfig.mockResolvedValue({

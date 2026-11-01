@@ -42,8 +42,9 @@ import type {
   PhaseModels,
   WorkspaceDefaults,
 } from '../../../shared/ipc';
-import { useModalDismiss } from '../components/useModalDismiss';
 import { ErrorSurface } from '../components/ErrorSurface';
+import { ToolbarPopover, ToolbarPopoverAnchor } from '../components/ToolbarPopover';
+import { useModalDismiss } from '../components/useModalDismiss';
 import { retryAction, useIpcLoad } from '../hooks';
 import { parseIpcError } from '../wizard/ipcError';
 
@@ -161,6 +162,34 @@ export function applicableGates(pipeline: string): ReadonlySet<keyof Checkpoints
   ]);
 }
 
+function providerLabel(provider: string): string {
+  const known: Record<string, string> = {
+    claude: 'Claude',
+    codex: 'Codex',
+    opencode: 'OpenCode',
+    cursor: 'Cursor',
+  };
+  const named = known[provider.toLocaleLowerCase()];
+  if (named !== undefined) return named;
+  return provider === ''
+    ? provider
+    : `${provider.charAt(0).toLocaleUpperCase()}${provider.slice(1)}`;
+}
+
+function modelMatchesQuery(
+  catalogue: ModelCatalogue | null,
+  provider: string,
+  id: string,
+  query: string,
+): boolean {
+  if (query === '') return true;
+  const needle = query.toLocaleLowerCase();
+  const info = catalogue?.providerModels[provider]?.find((model) => model.id === id);
+  return [id, info?.displayName ?? '', ...(info?.aliases ?? [])].some((name) =>
+    name.toLocaleLowerCase().includes(needle),
+  );
+}
+
 function modelDisplayName(catalogue: ModelCatalogue | null, provider: string, id: string): string {
   const info = catalogue?.providerModels[provider]?.find((m) => m.id === id);
   return info?.displayName !== undefined && info.displayName !== '' ? info.displayName : id;
@@ -198,6 +227,20 @@ interface ModelPickerProps {
 }
 
 function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelPickerProps) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [providerFilter, setProviderFilter] = useState<string | null>(null);
+  const dismiss = useCallback(() => {
+    setOpen(false);
+    setQuery('');
+    setProviderFilter(null);
+  }, []);
+  useEffect(() => {
+    if (open) searchRef.current?.focus();
+  }, [open]);
+
   const groups = useMemo(() => {
     if (catalogue === null) return [];
     const eligibleByProvider = catalogue.phaseProviderModels[field.role] ?? {};
@@ -211,6 +254,14 @@ function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelP
       return [{ provider, ids: ordered }];
     });
   }, [catalogue, field.role]);
+
+  const visibleGroups = groups
+    .filter((group) => providerFilter === null || group.provider === providerFilter)
+    .map((group) => ({
+      ...group,
+      ids: group.ids.filter((id) => modelMatchesQuery(catalogue, group.provider, id, query)),
+    }))
+    .filter((group) => group.ids.length > 0);
 
   const recommended = catalogue?.phaseDefaults[field.key];
   const canonicalValues = new Set(
@@ -230,7 +281,7 @@ function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelP
     value !== '' && canonicalValues.has(value)
       ? catalogueModelForSelection(catalogue, value)
       : undefined;
-  // The select clamps long labels with an ellipsis; the title carries the
+  // The trigger clamps long labels with an ellipsis; the title carries the
   // full label of the current choice.
   const selectedLabel =
     value === ''
@@ -245,50 +296,125 @@ function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelP
           ? `${value} (unavailable)`
           : `${modelDisplayName(catalogue, selectedAlias.provider, selectedAlias.model.id)} — ${value} (alias)`;
 
+  const choose = (next: string) => {
+    onChange(next);
+    dismiss();
+  };
+  const defaultLabel = automaticReviewer
+    ? 'Automatic — Claude → OpenCode → Codex'
+    : `Default — ${effectiveDefault}${defaultUnavailable ? ' (unavailable)' : ''}`;
+
   return (
-    <select
-      className="config-editor__pick config-editor__pick--model"
-      aria-label={`${field.label} model`}
-      title={selectedLabel}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="">
-        {automaticReviewer ? (
-          <>Automatic — Claude → OpenCode → Codex</>
-        ) : (
-          <>
-            Default — {effectiveDefault}
-            {defaultUnavailable ? ' (unavailable)' : ''}
-          </>
-        )}
-      </option>
-      {value !== '' && !canonicalValues.has(value) ? (
-        <option value={value}>
-          {selectedAlias === undefined
-            ? `${value} (unavailable)`
-            : `${modelDisplayName(
-                catalogue,
-                selectedAlias.provider,
-                selectedAlias.model.id,
-              )} — ${value} (alias)`}
-        </option>
-      ) : null}
-      {groups.map((group) => (
-        <optgroup key={group.provider} label={group.provider}>
-          {group.ids.map((id) => {
-            const optionValue = selectionValue(catalogue, group.provider, id);
-            const star = recommended === id || recommended === optionValue ? ' ★' : '';
-            return (
-              <option key={optionValue} value={optionValue}>
-                {modelDisplayName(catalogue, group.provider, id)}
-                {star}
-              </option>
-            );
-          })}
-        </optgroup>
-      ))}
-    </select>
+    <ToolbarPopoverAnchor className="model-picker">
+      <button
+        ref={trigger}
+        type="button"
+        className="config-editor__pick config-editor__pick--model model-picker__trigger"
+        aria-label={`${field.label} model`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        title={selectedLabel}
+        data-value={value}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="model-picker__value">{selectedLabel}</span>
+      </button>
+      <ToolbarPopover
+        open={open}
+        className="model-picker__panel"
+        label="Model catalogue"
+        anchorRef={trigger}
+        onDismiss={dismiss}
+      >
+        <input
+          ref={searchRef}
+          className="model-picker__search"
+          aria-label="Search models"
+          placeholder="Search models"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        {groups.length > 1 ? (
+          <div className="model-picker__providers" role="group" aria-label="Providers">
+            <button
+              type="button"
+              className="model-picker__provider"
+              aria-pressed={providerFilter === null}
+              onClick={() => setProviderFilter(null)}
+            >
+              All
+            </button>
+            {groups.map((group) => (
+              <button
+                key={group.provider}
+                type="button"
+                className="model-picker__provider"
+                aria-pressed={providerFilter === group.provider}
+                onClick={() => setProviderFilter(group.provider)}
+              >
+                {providerLabel(group.provider)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="model-picker__list" role="listbox" aria-label="Matching models">
+          <button
+            type="button"
+            role="option"
+            className="model-picker__option"
+            data-value=""
+            aria-selected={value === ''}
+            onClick={() => choose('')}
+          >
+            {defaultLabel}
+          </button>
+          {value !== '' && !canonicalValues.has(value) ? (
+            <button
+              type="button"
+              role="option"
+              className="model-picker__option"
+              data-value={value}
+              aria-selected
+              onClick={() => choose(value)}
+            >
+              {selectedAlias === undefined
+                ? `${value} (unavailable)`
+                : `${modelDisplayName(
+                    catalogue,
+                    selectedAlias.provider,
+                    selectedAlias.model.id,
+                  )} — ${value} (alias)`}
+            </button>
+          ) : null}
+          {visibleGroups.map((group) => (
+            <div key={group.provider} role="group" aria-label={group.provider}>
+              <div className="model-picker__legend">{providerLabel(group.provider)}</div>
+              {group.ids.map((id) => {
+                const optionValue = selectionValue(catalogue, group.provider, id);
+                const star = recommended === id || recommended === optionValue ? ' ★' : '';
+                return (
+                  <button
+                    key={optionValue}
+                    type="button"
+                    role="option"
+                    className="model-picker__option"
+                    data-value={optionValue}
+                    aria-selected={value === optionValue}
+                    onClick={() => choose(optionValue)}
+                  >
+                    {modelDisplayName(catalogue, group.provider, id)}
+                    {star}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+          {visibleGroups.length === 0 ? (
+            <p className="model-picker__empty">No models match</p>
+          ) : null}
+        </div>
+      </ToolbarPopover>
+    </ToolbarPopoverAnchor>
   );
 }
 

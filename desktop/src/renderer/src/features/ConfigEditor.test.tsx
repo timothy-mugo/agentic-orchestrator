@@ -15,13 +15,32 @@ limitations under the License.
 */
 
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { installAgenticoMock, ipcError } from '../test/agenticoMock';
 import { FeatureConfigPanel, WorkspaceDefaultsPanel } from './ConfigEditor';
 import type { FeatureConfigSnapshot, ModelCatalogue, WorkspaceDefaults } from '../../../shared/ipc';
 
 afterEach(cleanup);
+
+function matchingModels() {
+  return screen.getByRole('listbox', { name: 'Matching models' });
+}
+
+async function openModels(user: UserEvent, label: string) {
+  const trigger = screen.getByLabelText(label);
+  if (trigger.getAttribute('aria-expanded') !== 'true') await user.click(trigger);
+  return matchingModels();
+}
+
+async function chooseModel(user: UserEvent, label: string, value: string) {
+  const list = await openModels(user, label);
+  const option = within(list)
+    .getAllByRole('option')
+    .find((item) => item.getAttribute('data-value') === value);
+  if (option === undefined) throw new Error(`missing model option ${value}`);
+  await user.click(option);
+}
 
 const CATALOGUE: ModelCatalogue = {
   providerOrder: ['claude', 'codex'],
@@ -90,15 +109,39 @@ describe('FeatureConfigPanel', () => {
     render(<FeatureConfigPanel featureId="feat-1" />);
 
     const picker = await screen.findByLabelText('Implementation model');
-    expect(picker).toHaveValue('claude:opus');
-    const options = within(picker).getAllByRole('option');
+    expect(picker).toHaveAttribute('data-value', 'claude:opus');
+    const list = await openModels(userEvent.setup(), 'Implementation model');
+    const options = within(list).getAllByRole('option');
     expect(options[0]).toHaveTextContent('Default — claude:sonnet');
     // Two providers detected: values carry the provider prefix, and the
     // phase default carries the recommendation marker.
     const sonnet = options.find((o) => o.textContent?.startsWith('Sonnet'));
-    expect(sonnet).toHaveValue('claude:sonnet');
+    expect(sonnet).toHaveAttribute('data-value', 'claude:sonnet');
     expect(sonnet).toHaveTextContent('★');
-    expect(within(picker).getByRole('group', { name: 'codex' })).toBeInTheDocument();
+    expect(within(list).getByRole('group', { name: 'codex' })).toBeInTheDocument();
+  });
+
+  it('filters models by search text and provider', async () => {
+    const mock = installAgenticoMock();
+    mock.api.getFeatureConfig.mockResolvedValue(SNAPSHOT);
+    mock.api.getModelCatalogue.mockResolvedValue(CATALOGUE);
+    render(<FeatureConfigPanel featureId="feat-1" />);
+    const user = userEvent.setup();
+
+    await screen.findByLabelText('Implementation model');
+    const list = await openModels(user, 'Implementation model');
+    await user.type(screen.getByLabelText('Search models'), 'gpt');
+    expect(within(list).queryByRole('option', { name: /Sonnet/ })).toBeNull();
+    expect(within(list).getByRole('option', { name: /GPT A/ })).toBeVisible();
+
+    await user.clear(screen.getByLabelText('Search models'));
+    await user.click(screen.getByRole('button', { name: 'Codex' }));
+    expect(within(list).queryByRole('group', { name: 'claude' })).toBeNull();
+    expect(within(list).getByRole('group', { name: 'codex' })).toBeInTheDocument();
+    expect(within(list).getByRole('option', { name: /GPT A/ })).toHaveAttribute(
+      'data-value',
+      'codex:gpt-a',
+    );
   });
 
   it('marks a workspace default as unavailable when it is absent from live discovery', async () => {
@@ -118,8 +161,9 @@ describe('FeatureConfigPanel', () => {
     });
     render(<FeatureConfigPanel featureId="feat-1" />);
 
-    const picker = await screen.findByLabelText('Implementation model');
-    expect(within(picker).getAllByRole('option')[0]).toHaveTextContent(
+    await screen.findByLabelText('Implementation model');
+    const list = await openModels(userEvent.setup(), 'Implementation model');
+    expect(within(list).getAllByRole('option')[0]).toHaveTextContent(
       'Default — sonnet[200K] (unavailable)',
     );
   });
@@ -135,7 +179,7 @@ describe('FeatureConfigPanel', () => {
     const save = await screen.findByRole('button', { name: 'Save changes' });
     expect(save).toBeDisabled();
 
-    await user.selectOptions(screen.getByLabelText('Implementation model'), 'claude:sonnet');
+    await chooseModel(user, 'Implementation model', 'claude:sonnet');
     await user.selectOptions(screen.getByLabelText('Implementation effort'), 'medium');
     await user.click(screen.getByRole('radio', { name: /High/ }));
     await user.click(screen.getByRole('checkbox', { name: /Research review/ }));
@@ -249,12 +293,12 @@ describe('FeatureConfigPanel', () => {
     ).toBeVisible();
     expect(within(effort).getByRole('option', { name: 'Max' })).toBeVisible();
 
-    await user.selectOptions(screen.getByLabelText('Implementation model'), 'codex:gpt-a');
+    await chooseModel(user, 'Implementation model', 'codex:gpt-a');
     expect(effort).toHaveValue('auto');
     await waitFor(() => expect(within(effort).queryByRole('option', { name: 'High' })).toBeNull());
     expect(screen.getByText('Effort reset to Auto for the selected model.')).toBeVisible();
 
-    await user.selectOptions(screen.getByLabelText('Implementation model'), '');
+    await chooseModel(user, 'Implementation model', '');
     expect(within(effort).getByRole('option', { name: 'High' })).toBeVisible();
   });
 
@@ -302,9 +346,10 @@ describe('FeatureConfigPanel', () => {
     mock.api.getModelCatalogue.mockResolvedValue(CATALOGUE);
     render(<FeatureConfigPanel featureId="feat-1" />);
 
-    const picker = await screen.findByLabelText('Implementation model');
+    await screen.findByLabelText('Implementation model');
+    const list = await openModels(userEvent.setup(), 'Implementation model');
     expect(
-      within(picker).getByRole('option', { name: 'Opus — claude:opus-latest (alias)' }),
+      within(list).getByRole('option', { name: 'Opus — claude:opus-latest (alias)' }),
     ).toBeVisible();
     expect(
       within(screen.getByLabelText('Implementation effort')).getByRole('option', { name: 'Max' }),
@@ -334,10 +379,10 @@ describe('FeatureConfigPanel', () => {
     });
     render(<FeatureConfigPanel featureId="feat-1" />);
     const user = userEvent.setup();
-    const model = await screen.findByLabelText('Implementation model');
+    await screen.findByLabelText('Implementation model');
     const effort = screen.getByLabelText('Implementation effort');
     expect(within(effort).queryByRole('option', { name: 'Ultra' })).toBeNull();
-    await user.selectOptions(model, 'codex:gpt-6-astra[872K]');
+    await chooseModel(user, 'Implementation model', 'codex:gpt-6-astra[872K]');
     await user.selectOptions(effort, 'ultra');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() =>
@@ -403,9 +448,10 @@ describe('FeatureConfigPanel', () => {
     render(<FeatureConfigPanel featureId="feat-1" />);
 
     const picker = await screen.findByLabelText('Implementation model');
-    expect(picker).toHaveValue('gone:model');
+    expect(picker).toHaveAttribute('data-value', 'gone:model');
+    const list = await openModels(userEvent.setup(), 'Implementation model');
     expect(
-      within(picker).getByRole('option', { name: 'gone:model (unavailable)' }),
+      within(list).getByRole('option', { name: 'gone:model (unavailable)' }),
     ).toBeInTheDocument();
   });
 
@@ -446,7 +492,7 @@ describe('FeatureConfigPanel', () => {
     const user = userEvent.setup();
 
     await screen.findByLabelText('Implementation model');
-    await user.selectOptions(screen.getByLabelText('Implementation model'), 'claude:sonnet');
+    await chooseModel(user, 'Implementation model', 'claude:sonnet');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
     // The failure branch is the canonical card; the bar's own Save button is
@@ -512,9 +558,10 @@ describe('WorkspaceDefaultsPanel', () => {
     render(<WorkspaceDefaultsPanel />);
     const user = userEvent.setup();
 
-    const reviewer = await screen.findByLabelText('Auto mode reviewer model');
+    await screen.findByLabelText('Auto mode reviewer model');
+    const reviewer = await openModels(user, 'Auto mode reviewer model');
     expect(within(reviewer).getByRole('option', { name: /Automatic/ })).toBeVisible();
-    await user.selectOptions(reviewer, 'claude:sonnet');
+    await chooseModel(user, 'Auto mode reviewer model', 'claude:sonnet');
     await user.click(
       within(screen.getByRole('radiogroup', { name: 'Auto mode' })).getByRole('radio', {
         name: 'Enabled',

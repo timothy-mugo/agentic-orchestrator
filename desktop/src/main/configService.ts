@@ -42,6 +42,7 @@ import {
   type FeatureConfig,
   type FeatureConfigSnapshot,
   type FeatureConfigUpdateRequest,
+  CATALOGUE_MODELS_PER_PROVIDER,
   type ModelCatalogue,
   type PhaseEffort,
   type PhaseModels,
@@ -322,17 +323,19 @@ function toModelCatalogue(data: z.output<typeof ModelCatalogResponseSchema>): Mo
       ),
     }));
   }
-  return limitOpenCodeModels({
-    providerOrder: data.provider_order ?? [],
-    providerModels,
-    phaseDefaults: toPhaseModels(data.phase_defaults ?? {}),
-    phaseProviderModels: data.phase_provider_models ?? {},
-    chatDefaultEffort: data.chat_default_effort ?? {},
-  });
+  return boundCatalogueSize(
+    limitOpenCodeModels({
+      providerOrder: data.provider_order ?? [],
+      providerModels,
+      phaseDefaults: toPhaseModels(data.phase_defaults ?? {}),
+      phaseProviderModels: data.phase_provider_models ?? {},
+      chatDefaultEffort: data.chat_default_effort ?? {},
+    }),
+  );
 }
 
 /** OpenCode models already offered by Claude or Codex are omitted, and the rest stop at this count. */
-const OPENCODE_MODEL_LIMIT = 80;
+const OPENCODE_MODEL_LIMIT = 100;
 
 /**
  * Drops OpenCode entries whose id or alias matches a Claude or Codex model,
@@ -365,6 +368,30 @@ function limitOpenCodeModels(catalogue: ModelCatalogue): ModelCatalogue {
     providerModels: { ...catalogue.providerModels, opencode: kept },
     phaseProviderModels,
   };
+  return { ...limited, phaseDefaults: reconcilePhaseDefaults(limited) };
+}
+
+/** Keeps each provider inside the catalogue IPC limit so one long list cannot reject the payload. */
+function boundCatalogueSize(catalogue: ModelCatalogue): ModelCatalogue {
+  const providerModels: ModelCatalogue['providerModels'] = { ...catalogue.providerModels };
+  const kept = new Map<string, Set<string>>();
+  for (const [provider, models] of Object.entries(providerModels)) {
+    if (models.length <= CATALOGUE_MODELS_PER_PROVIDER) continue;
+    const sliced = models.slice(0, CATALOGUE_MODELS_PER_PROVIDER);
+    providerModels[provider] = sliced;
+    kept.set(provider, new Set(sliced.map((model) => model.id)));
+  }
+  if (kept.size === 0) return catalogue;
+  const phaseProviderModels: ModelCatalogue['phaseProviderModels'] = {};
+  for (const [phase, providers] of Object.entries(catalogue.phaseProviderModels)) {
+    phaseProviderModels[phase] = {};
+    for (const [provider, ids] of Object.entries(providers)) {
+      const allow = kept.get(provider);
+      phaseProviderModels[phase]![provider] =
+        allow === undefined ? ids : ids.filter((id) => allow.has(id));
+    }
+  }
+  const limited: ModelCatalogue = { ...catalogue, providerModels, phaseProviderModels };
   return { ...limited, phaseDefaults: reconcilePhaseDefaults(limited) };
 }
 
@@ -433,9 +460,14 @@ function replacementForDroppedDefault(
       return multiple ? `${provider}:${model.id}` : model.id;
     }
   }
-  const first = catalogue.phaseProviderModels[role]?.opencode?.[0];
-  if (first === undefined) return undefined;
-  return multiple ? `opencode:${first}` : first;
+  const source = splitSelection(value).provider;
+  if (source !== undefined) {
+    const first =
+      catalogue.phaseProviderModels[role]?.[source]?.[0] ??
+      catalogue.providerModels[source]?.[0]?.id;
+    if (first !== undefined) return multiple ? `${source}:${first}` : first;
+  }
+  return undefined;
 }
 
 function splitSelection(value: string): { provider?: string; id: string } {

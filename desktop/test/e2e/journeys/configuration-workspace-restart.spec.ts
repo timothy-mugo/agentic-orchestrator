@@ -107,21 +107,17 @@ test('configuration, workspace, and restart journey against the packaged app', a
 
     const implementationPicker = editor.getByLabel('Implementation model');
     await expect(implementationPicker).toBeVisible();
-    const defaultOptionLabel = await implementationPicker.locator('option').first().textContent();
+    await implementationPicker.click();
+    const modelList = editor.getByRole('listbox', { name: 'Matching models' });
+    const defaultOptionLabel = await modelList.getByRole('option').first().textContent();
     expect(defaultOptionLabel).toContain('Default —');
     transcript.step(`implementation picker names the effective default: "${defaultOptionLabel}"`);
 
     // Pick the first concrete model, flip inquireness and a gate, then save.
-    const optionValues = await implementationPicker
-      .locator('option')
-      .evaluateAll((options) =>
-        options
-          .map((option) => (option as HTMLOptionElement).value)
-          .filter((value) => value !== ''),
-      );
-    expect(optionValues.length).toBeGreaterThan(0);
-    const chosenModel = optionValues[0] as string;
-    await implementationPicker.selectOption(chosenModel);
+    const concrete = modelList.locator('[role="option"][data-value]:not([data-value=""])').first();
+    const chosenModel = await concrete.getAttribute('data-value');
+    if (chosenModel === null || chosenModel === '') throw new Error('missing model option');
+    await concrete.click();
     // The fixture's Claude catalog must not inherit Codex/Astra-only effort.
     await expect(
       editor

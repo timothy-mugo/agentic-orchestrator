@@ -4289,6 +4289,9 @@ const WorkspaceDefaultsSchema = z.strictObject({
 });
 export type WorkspaceDefaults = z.output<typeof WorkspaceDefaultsSchema>;
 
+/** Per-provider model list the catalogue IPC schema accepts. */
+export const CATALOGUE_MODELS_PER_PROVIDER = 400;
+
 const CatalogueModelSchema = z.strictObject({
   id: z.string().min(1).max(200),
   displayName: z.string().max(200).optional(),
@@ -4299,16 +4302,19 @@ const CatalogueModelSchema = z.strictObject({
 });
 export type CatalogueModel = z.output<typeof CatalogueModelSchema>;
 
-const ModelCatalogueSchema = z.strictObject({
+export const ModelCatalogueSchema = z.strictObject({
   providerOrder: z.array(z.string().max(100)).max(20),
   chatDefaultEffort: z.record(z.string().max(100), EffortLevelSchema).optional(),
-  providerModels: z.record(z.string().max(100), z.array(CatalogueModelSchema).max(200)),
+  providerModels: z.record(
+    z.string().max(100),
+    z.array(CatalogueModelSchema).max(CATALOGUE_MODELS_PER_PROVIDER),
+  ),
   /** Recommended model per phase field (keys match PhaseModels). */
   phaseDefaults: PhaseModelsSchema,
   /** Phase field -> provider -> eligible model ids. */
   phaseProviderModels: z.record(
     z.string().max(50),
-    z.record(z.string().max(100), z.array(z.string().max(200)).max(200)),
+    z.record(z.string().max(100), z.array(z.string().max(200)).max(CATALOGUE_MODELS_PER_PROVIDER)),
   ),
 });
 export type ModelCatalogue = z.output<typeof ModelCatalogueSchema>;

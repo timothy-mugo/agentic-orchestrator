@@ -63,6 +63,7 @@ export function SupervisorModelChip({
   const [pending, setPending] = useState<SupervisorSettings | null>(null);
   const [error, setError] = useState<CanonicalError | null>(null);
   const [modelFilter, setModelFilter] = useState('');
+  const [providerFilter, setProviderFilter] = useState<string | null>(null);
   const effortRef = useRef<HTMLFieldSetElement>(null);
   useEffect(() => {
     if (openSection === null || openSection === undefined) return;
@@ -148,6 +149,29 @@ export function SupervisorModelChip({
           onChange={(event) => setModelFilter(event.target.value)}
           placeholder="Find a model"
         />
+        {groups !== null && groups.length > 1 ? (
+          <div className="supervisor-chip__providers" role="group" aria-label="Providers">
+            <button
+              type="button"
+              className="supervisor-chip__provider"
+              aria-pressed={providerFilter === null}
+              onClick={() => setProviderFilter(null)}
+            >
+              All
+            </button>
+            {groups.map((group) => (
+              <button
+                key={group.harness}
+                type="button"
+                className="supervisor-chip__provider"
+                aria-pressed={providerFilter === group.harness}
+                onClick={() => setProviderFilter(group.harness)}
+              >
+                {group.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {error !== null ? <ErrorSurface error={error} variant="compact" /> : null}
         {groups === null ? (
           <p className="supervisor-chip__note" role="status">
@@ -157,72 +181,76 @@ export function SupervisorModelChip({
           <p className="supervisor-chip__note">{SUPERVISOR_COPY.noHarnesses}</p>
         ) : (
           <div className="supervisor-chip__groups">
-            {groups.map((group) => (
-              <fieldset
-                key={group.harness}
-                className="supervisor-chip__group"
-                disabled={pending !== null}
-              >
-                <legend className="supervisor-chip__harness">{group.label}</legend>
-                {settingsChosen(settings) && group.harness !== settings.harness ? (
-                  <button
-                    type="button"
-                    className="supervisor-chip__switch"
-                    disabled={group.models.length === 0}
-                    onClick={() => {
-                      setOpen(false);
-                      onSwitch(group.harness);
-                    }}
+            {groups
+              .filter((group) => providerFilter === null || group.harness === providerFilter)
+              .map((group) => {
+                const models = group.models.filter(
+                  (model) =>
+                    modelFilter === '' ||
+                    [model.id, model.displayName ?? '', ...(model.aliases ?? [])].some((name) =>
+                      name.toLocaleLowerCase().includes(modelFilter.toLocaleLowerCase()),
+                    ),
+                );
+                if (group.models.length > 0 && models.length === 0) return null;
+                return (
+                  <fieldset
+                    key={group.harness}
+                    className="supervisor-chip__group"
+                    disabled={pending !== null}
                   >
-                    Switch to {group.label}…
-                  </button>
-                ) : null}
-                {group.models.length === 0 ? (
-                  <p className="supervisor-chip__note">{SUPERVISOR_COPY.noModels}</p>
-                ) : (
-                  group.models
-                    .filter(
-                      (model) =>
-                        modelFilter === '' ||
-                        [model.id, model.displayName ?? '', ...(model.aliases ?? [])].some((name) =>
-                          name.toLocaleLowerCase().includes(modelFilter.toLocaleLowerCase()),
-                        ),
-                    )
-                    .map((model) => {
-                      const current = shown.harness === group.harness && shown.model === model.id;
-                      return (
-                        <label
-                          key={model.id}
-                          className="supervisor-chip__option"
-                          data-current={current ? true : undefined}
-                        >
-                          <input
-                            className="sr-only"
-                            type="radio"
-                            name="supervisor-model"
-                            value={`${group.harness}:${model.id}`}
-                            checked={current}
-                            onChange={() => chooseModel(group.harness, model.id)}
-                          />
-                          <span className="supervisor-chip__option-name">
-                            {modelLabel(catalogue, group.harness, model.id)}
-                            {catalogue?.phaseProviderModels.chat?.[group.harness]?.[0] ===
-                            model.id ? (
-                              <span aria-hidden="true" title="Recommended model">
-                                {' '}
-                                ★
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="supervisor-chip__check" aria-hidden="true">
-                            {current ? '✓' : ''}
-                          </span>
-                        </label>
-                      );
-                    })
-                )}
-              </fieldset>
-            ))}
+                    <legend className="supervisor-chip__harness">{group.label}</legend>
+                    {settingsChosen(settings) && group.harness !== settings.harness ? (
+                      <button
+                        type="button"
+                        className="supervisor-chip__switch"
+                        disabled={group.models.length === 0}
+                        onClick={() => {
+                          setOpen(false);
+                          onSwitch(group.harness);
+                        }}
+                      >
+                        Switch to {group.label}…
+                      </button>
+                    ) : null}
+                    {group.models.length === 0 ? (
+                      <p className="supervisor-chip__note">{SUPERVISOR_COPY.noModels}</p>
+                    ) : (
+                      models.map((model) => {
+                        const current = shown.harness === group.harness && shown.model === model.id;
+                        return (
+                          <label
+                            key={model.id}
+                            className="supervisor-chip__option"
+                            data-current={current ? true : undefined}
+                          >
+                            <input
+                              className="sr-only"
+                              type="radio"
+                              name="supervisor-model"
+                              value={`${group.harness}:${model.id}`}
+                              checked={current}
+                              onChange={() => chooseModel(group.harness, model.id)}
+                            />
+                            <span className="supervisor-chip__option-name">
+                              {modelLabel(catalogue, group.harness, model.id)}
+                              {catalogue?.phaseProviderModels.chat?.[group.harness]?.[0] ===
+                              model.id ? (
+                                <span aria-hidden="true" title="Recommended model">
+                                  {' '}
+                                  ★
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="supervisor-chip__check" aria-hidden="true">
+                              {current ? '✓' : ''}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </fieldset>
+                );
+              })}
           </div>
         )}
         {chosen ? (

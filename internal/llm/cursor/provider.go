@@ -86,16 +86,6 @@ func (p *Provider) SupportsNativeToollessReview() bool { return false }
 
 func (p *Provider) ReviewPreferenceBand(llm.ModelInfo) (int, bool) { return 0, false }
 
-func (p *Provider) RecommendedModels(llm.PhaseRole) []string {
-	if p.MatchesModel("auto") {
-		return []string{"auto"}
-	}
-	if models := p.AvailableModels(); len(models) > 0 {
-		return []string{models[0]}
-	}
-	return nil
-}
-
 func (p *Provider) AskingQuestionsClause() string {
 	return `## Asking Questions
 

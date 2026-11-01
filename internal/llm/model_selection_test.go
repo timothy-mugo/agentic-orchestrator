@@ -21,6 +21,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm"
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm/claude"
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm/codex"
+	"github.com/doordash-oss/agentic-orchestrator/internal/llm/cursor"
 )
 
 func testBool(value bool) *bool { return &value }
@@ -109,6 +110,28 @@ func builtinProvider(name string, real interface {
 	return &stubRecommendingProvider{
 		stubCatalogProvider: stubCatalogProvider{stubProvider: stubProvider{name: name, hasCLI: true}, catalog: real.ModelCatalog()},
 		recommend:           real.RecommendedModels,
+	}
+}
+
+func TestCursorAutoDoesNotReplaceClaudeSonnetDefault(t *testing.T) {
+	cursorProvider := cursor.NewProvider("cursor-agent")
+	if _, ok := any(cursorProvider).(llm.RoleModelRecommender); ok {
+		t.Fatal("cursor must not nominate a default model")
+	}
+	r := llm.NewRegistry()
+	r.Register(builtinProvider("claude", claude.NewProvider("")))
+	r.Register(&stubCatalogProvider{
+		stubProvider: stubProvider{name: "cursor", hasCLI: true},
+		catalog:      cursorProvider.ModelCatalog(),
+	})
+	defaults := r.CatalogDefaultModels()
+	for role, got := range map[string]string{
+		"inquiry": defaults.Inquiry, "research": defaults.Research, "planning": defaults.Planning,
+		"implementation": defaults.Implementation, "review": defaults.Review, "utilities": defaults.Utilities, "kb_build": defaults.KBBuild,
+	} {
+		if got != "claude:sonnet[200K]" {
+			t.Fatalf("%s default = %q, want claude:sonnet[200K]", role, got)
+		}
 	}
 }
 

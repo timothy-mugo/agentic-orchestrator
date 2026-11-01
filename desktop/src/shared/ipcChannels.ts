@@ -143,6 +143,7 @@ export const IPC_CHANNELS = {
   getDiagnostics: 'agentico:diagnostics:get',
   revealDiagnostics: 'agentico:diagnostics:reveal',
   clearDiagnostics: 'agentico:diagnostics:clear',
+  getDebugLogs: 'agentico:debug:logs',
 } as const;
 
 export type IpcMethod = keyof typeof IPC_CHANNELS;

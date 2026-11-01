@@ -512,6 +512,7 @@ export interface AgenticoMock {
     getDiagnostics: ReturnType<typeof vi.fn>;
     revealDiagnostics: ReturnType<typeof vi.fn>;
     clearDiagnostics: ReturnType<typeof vi.fn>;
+    getDebugLogs: ReturnType<typeof vi.fn>;
   };
   /** Push a connection change to every subscribed listener. */
   emitConnection(state: ConnectionState): void;
@@ -1194,6 +1195,7 @@ export function installAgenticoMock(
       }),
     ),
     getDiagnostics: vi.fn(() => Promise.resolve(diagnostics)),
+    getDebugLogs: vi.fn(() => Promise.resolve({ lines: [] as string[] })),
     revealDiagnostics: vi.fn(() => Promise.resolve({ ok: true })),
     clearDiagnostics: vi.fn(() =>
       Promise.resolve({

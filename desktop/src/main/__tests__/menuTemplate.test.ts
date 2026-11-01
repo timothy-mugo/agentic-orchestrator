@@ -23,6 +23,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MenuItemConstructorOptions } from 'electron';
 import {
   buildApplicationMenuTemplate,
+  debugMenuInsertIndex,
+  debugWindowMenuItem,
   inspectorToggleLabel,
   sidebarToggleLabel,
   type MenuTemplateDeps,
@@ -372,6 +374,27 @@ describe('application menu start-local escape hatch', () => {
     );
     expect(startLocalRuntime).toHaveBeenCalledTimes(1);
     expect(route).not.toHaveBeenCalled();
+  });
+});
+
+describe('Debug window menu item', () => {
+  it('sits ahead of the Window menu separator and opens the Debug window', () => {
+    expect(
+      debugMenuInsertIndex([
+        { type: 'normal' },
+        { type: 'normal' },
+        { type: 'separator' },
+        { type: 'normal' },
+      ]),
+    ).toBe(2);
+    expect(debugMenuInsertIndex([{ type: 'normal' }])).toBe(1);
+
+    const openDebugWindow = vi.fn();
+    const item = debugWindowMenuItem(openDebugWindow);
+    expect(item.id).toBe('window.debug');
+    expect(item.label).toBe('Debug');
+    item.click?.(undefined as never, undefined as never, undefined as never);
+    expect(openDebugWindow).toHaveBeenCalledTimes(1);
   });
 });
 

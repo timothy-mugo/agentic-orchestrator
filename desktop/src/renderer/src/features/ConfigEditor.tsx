@@ -340,6 +340,7 @@ function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelP
   const choose = (next: string) => {
     onChange(next);
     dismiss();
+    trigger.current?.focus();
   };
   const defaultLabel = automaticReviewer
     ? 'Automatic — Claude → OpenCode → Codex'

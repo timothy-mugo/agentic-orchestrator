@@ -373,7 +373,7 @@ func (p *Protocol) finishPrompt(failed bool, result, rpcErr json.RawMessage) []l
 		out = append(out, root(llm.SDKMessage{
 			Type: "assistant",
 			Assistant: &llm.AssistantMessage{
-				Type:    "assistant",
+				Type: "assistant",
 				Message: llm.ConversationMsg{Role: "assistant", Content: []llm.ContentBlock{{Type: "text", Text: text}}},
 			},
 		}))
@@ -422,6 +422,10 @@ func (p *Protocol) handlePermission(rawID, params json.RawMessage) []llm.SDKMess
 	}
 	allow, always, reject := classifyOptions(req.Options)
 	if p.opts.DSP {
+		if allow == "" {
+			_ = p.reply(rawID, map[string]any{"outcome": map[string]any{"outcome": "cancelled"}})
+			return nil
+		}
 		_ = p.reply(rawID, selected(allow))
 		return nil
 	}

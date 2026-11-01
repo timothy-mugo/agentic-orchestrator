@@ -152,6 +152,10 @@ func TestRegistryCatalog_ValidatesHarnessModelAndEffort(t *testing.T) {
 			t.Fatalf("%s: err = %v, want SettingsInvalidError", name, err)
 		}
 	}
+	if err := catalog.ValidateSettings(Settings{Harness: "cursor", Model: "auto"}); !errors.As(err, &invalid) ||
+		!strings.Contains(err.Error(), "history restoration is not supported") {
+		t.Fatalf("Cursor settings err = %v, want unsupported history restoration", err)
+	}
 	if err := (RegistryCatalog{}).ValidateSettings(Settings{Harness: "claude", Model: eligible[0]}); !errors.As(err, &invalid) {
 		t.Fatalf("nil registry err = %v", err)
 	}

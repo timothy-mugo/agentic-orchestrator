@@ -72,8 +72,11 @@ func TestHandshakeAndPromptResult(t *testing.T) {
 		t.Fatalf("chunk = %+v", msgs)
 	}
 	msgs, _ = p.ParseLine([]byte(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":{"stopReason":"end_turn"}}`, p.promptID)))
-	if len(msgs) != 1 || !msgs[0].Result.IsSuccess() || msgs[0].Result.Result != "Hi" {
-		t.Fatalf("result = %+v", msgs)
+	if len(msgs) != 2 || msgs[0].Subtype == "partial" || msgs[0].Assistant.Message.Content[0].Text != "Hi" {
+		t.Fatalf("final text = %+v", msgs)
+	}
+	if !msgs[1].Result.IsSuccess() || msgs[1].Result.Result != "Hi" {
+		t.Fatalf("result = %+v", msgs[1].Result)
 	}
 	pw.Close()
 	select {
@@ -83,6 +86,38 @@ func TestHandshakeAndPromptResult(t *testing.T) {
 	}
 	if prompt != "be brief\n\nhello" {
 		t.Fatalf("prompt = %q", prompt)
+	}
+}
+
+func TestToolBoundaryKeepsOutcomeOnItsOwnMessage(t *testing.T) {
+	p := newProtocol(llm.ProtocolOpts{})
+	p.SetStdin(&bytes.Buffer{})
+	outcome := "Validated.\n<agentico-outcome>{\"status\":\"success\"}</agentico-outcome>"
+	p.ParseLine([]byte(fmt.Sprintf(`{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":%q}}}}`, outcome)))
+
+	msgs, _ := p.ParseLine([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"tool_call","toolCallId":"t1","kind":"execute","title":"validate"}}}`))
+	if len(msgs) != 2 || msgs[0].Subtype == "partial" || msgs[0].Assistant.Message.Content[0].Text != outcome {
+		t.Fatalf("flushed text = %+v", msgs)
+	}
+	if !llm.ParseCompletionIntent(msgs[0].Assistant.Message.Content[0].Text).Valid() {
+		t.Fatal("flushed outcome was not a valid completion")
+	}
+	if msgs[1].ToolProgress == nil || msgs[1].ToolProgress.ToolName != "execute" {
+		t.Fatalf("tool = %+v", msgs)
+	}
+
+	msgs, _ = p.ParseLine([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"tool_call_update","toolCallId":"t1","kind":"execute","title":"validate"}}}`))
+	if len(msgs) != 1 || msgs[0].ToolProgress == nil {
+		t.Fatalf("repeat tool update = %+v", msgs)
+	}
+
+	p.ParseLine([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"still looking"}}}}`))
+	msgs = p.finishPrompt(false, []byte(`{"stopReason":"end_turn"}`), nil)
+	if len(msgs) != 2 || msgs[0].Assistant.Message.Content[0].Text != "still looking" {
+		t.Fatalf("trailing text = %+v", msgs)
+	}
+	if llm.ParseCompletionIntent(msgs[0].Assistant.Message.Content[0].Text).Found {
+		t.Fatal("trailing text should not carry the earlier outcome")
 	}
 }
 

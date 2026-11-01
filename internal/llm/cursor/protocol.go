@@ -363,13 +363,7 @@ func (p *Protocol) finishPrompt(failed bool, result, rpcErr json.RawMessage) []l
 	}
 	out := make([]llm.SDKMessage, 0, 2)
 	if !msg.Result.IsError && text != "" {
-		out = append(out, root(llm.SDKMessage{
-			Type: "assistant",
-			Assistant: &llm.AssistantMessage{
-				Type: "assistant",
-				Message: llm.ConversationMsg{Role: "assistant", Content: []llm.ContentBlock{{Type: "text", Text: text}}},
-			},
-		}))
+		out = append(out, assistantText(text, false))
 	}
 	out = append(out, root(msg))
 	if next != "" {
@@ -506,24 +500,22 @@ func (p *Protocol) handleUpdate(params json.RawMessage) []llm.SDKMessage {
 		p.turnText.WriteString(text)
 		accumulated := p.turnText.String()
 		p.mu.Unlock()
-		return []llm.SDKMessage{root(llm.SDKMessage{
-			Type: "assistant", Subtype: "partial",
-			Assistant: &llm.AssistantMessage{
-				Type: "assistant", Subtype: "partial",
-				Message: llm.ConversationMsg{Role: "assistant", Content: []llm.ContentBlock{{Type: "text", Text: accumulated}}},
-			},
-		})}
+		return []llm.SDKMessage{assistantText(accumulated, true)}
 	case "tool_call", "tool_call_update":
+		// A tool boundary ends the current root message. The harness reads
+		// each message on its own, so an outcome tag stays the end of the
+		// message that emitted it instead of being glued to later text.
+		flushed := p.flushTurnText()
 		name := upd.Update.Kind
 		if name == "" {
 			name = upd.Update.Title
 		}
-		return []llm.SDKMessage{root(llm.SDKMessage{
+		return append(flushed, root(llm.SDKMessage{
 			Type: "tool_progress",
 			ToolProgress: &llm.ToolProgressMessage{
 				Type: "tool_progress", ToolUseID: upd.Update.ToolCallID, ToolName: name, Summary: upd.Update.Title,
 			},
-		})}
+		}))
 	default:
 		return nil
 	}
@@ -713,6 +705,31 @@ func idKey(raw json.RawMessage) string {
 		}
 	}
 	return string(raw)
+}
+
+func (p *Protocol) flushTurnText() []llm.SDKMessage {
+	p.mu.Lock()
+	text := p.turnText.String()
+	p.turnText.Reset()
+	p.mu.Unlock()
+	if text == "" {
+		return nil
+	}
+	return []llm.SDKMessage{assistantText(text, false)}
+}
+
+func assistantText(text string, partial bool) llm.SDKMessage {
+	subtype := ""
+	if partial {
+		subtype = "partial"
+	}
+	return root(llm.SDKMessage{
+		Type: "assistant", Subtype: subtype,
+		Assistant: &llm.AssistantMessage{
+			Type: "assistant", Subtype: subtype,
+			Message: llm.ConversationMsg{Role: "assistant", Content: []llm.ContentBlock{{Type: "text", Text: text}}},
+		},
+	})
 }
 
 func root(msg llm.SDKMessage) llm.SDKMessage {

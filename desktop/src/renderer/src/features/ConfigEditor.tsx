@@ -28,7 +28,17 @@ limitations under the License.
  * catalogue. Model options are grouped by provider and effort options stay
  * capability-aware, while untouched values name the effective defaults.
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
+import { createPortal } from 'react-dom';
 import type {
   AutomaticReviewMode,
   CanonicalError,
@@ -226,17 +236,48 @@ interface ModelPickerProps {
   onChange(value: string): void;
 }
 
+const MODEL_PANEL_WIDTH = 448;
+const MODEL_PANEL_HEIGHT = 512;
+
+function modelPanelStyle(anchor: HTMLButtonElement): CSSProperties {
+  const rect = anchor.getBoundingClientRect();
+  const width = Math.min(MODEL_PANEL_WIDTH, window.innerWidth - 16);
+  const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+  const gap = 6;
+  const roomBelow = window.innerHeight - rect.bottom - gap - 8;
+  const roomAbove = rect.top - gap - 8;
+  const openAbove = roomBelow < 240 && roomAbove > roomBelow;
+  const maxHeight = Math.min(MODEL_PANEL_HEIGHT, Math.max(160, openAbove ? roomAbove : roomBelow));
+  const top = openAbove ? Math.max(8, rect.top - gap - maxHeight) : rect.bottom + gap;
+  return { top, left, width, maxHeight };
+}
+
 function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelPickerProps) {
   const trigger = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [providerFilter, setProviderFilter] = useState<string | null>(null);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
   const dismiss = useCallback(() => {
     setOpen(false);
     setQuery('');
     setProviderFilter(null);
   }, []);
+  const place = useCallback(() => {
+    const anchor = trigger.current;
+    if (anchor !== null) setPanelStyle(modelPanelStyle(anchor));
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, place]);
   useEffect(() => {
     if (open) searchRef.current?.focus();
   }, [open]);
@@ -315,105 +356,114 @@ function ModelPicker({ field, value, defaultModel, catalogue, onChange }: ModelP
         aria-expanded={open}
         title={selectedLabel}
         data-value={value}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (!open) place();
+          setOpen((current) => !current);
+        }}
       >
         <span className="model-picker__value">{selectedLabel}</span>
       </button>
-      <ToolbarPopover
-        open={open}
-        className="model-picker__panel"
-        label="Model catalogue"
-        anchorRef={trigger}
-        onDismiss={dismiss}
-      >
-        <input
-          ref={searchRef}
-          className="model-picker__search"
-          aria-label="Search models"
-          placeholder="Search models"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        {groups.length > 1 ? (
-          <div className="model-picker__providers" role="group" aria-label="Providers">
-            <button
-              type="button"
-              className="model-picker__provider"
-              aria-pressed={providerFilter === null}
-              onClick={() => setProviderFilter(null)}
+      {open && panelStyle !== null
+        ? createPortal(
+            <ToolbarPopover
+              open
+              className="model-picker__panel"
+              style={panelStyle}
+              label="Model catalogue"
+              anchorRef={trigger}
+              onDismiss={dismiss}
             >
-              All
-            </button>
-            {groups.map((group) => (
-              <button
-                key={group.provider}
-                type="button"
-                className="model-picker__provider"
-                aria-pressed={providerFilter === group.provider}
-                onClick={() => setProviderFilter(group.provider)}
-              >
-                {providerLabel(group.provider)}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <div className="model-picker__list" role="listbox" aria-label="Matching models">
-          <button
-            type="button"
-            role="option"
-            className="model-picker__option"
-            data-value=""
-            aria-selected={value === ''}
-            onClick={() => choose('')}
-          >
-            {defaultLabel}
-          </button>
-          {value !== '' && !canonicalValues.has(value) ? (
-            <button
-              type="button"
-              role="option"
-              className="model-picker__option"
-              data-value={value}
-              aria-selected
-              onClick={() => choose(value)}
-            >
-              {selectedAlias === undefined
-                ? `${value} (unavailable)`
-                : `${modelDisplayName(
-                    catalogue,
-                    selectedAlias.provider,
-                    selectedAlias.model.id,
-                  )} — ${value} (alias)`}
-            </button>
-          ) : null}
-          {visibleGroups.map((group) => (
-            <div key={group.provider} role="group" aria-label={group.provider}>
-              <div className="model-picker__legend">{providerLabel(group.provider)}</div>
-              {group.ids.map((id) => {
-                const optionValue = selectionValue(catalogue, group.provider, id);
-                const star = recommended === id || recommended === optionValue ? ' ★' : '';
-                return (
+              <input
+                ref={searchRef}
+                className="model-picker__search"
+                aria-label="Search models"
+                placeholder="Search models"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {groups.length > 1 ? (
+                <div className="model-picker__providers" role="group" aria-label="Providers">
                   <button
-                    key={optionValue}
+                    type="button"
+                    className="model-picker__provider"
+                    aria-pressed={providerFilter === null}
+                    onClick={() => setProviderFilter(null)}
+                  >
+                    All
+                  </button>
+                  {groups.map((group) => (
+                    <button
+                      key={group.provider}
+                      type="button"
+                      className="model-picker__provider"
+                      aria-pressed={providerFilter === group.provider}
+                      onClick={() => setProviderFilter(group.provider)}
+                    >
+                      {providerLabel(group.provider)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div className="model-picker__list" role="listbox" aria-label="Matching models">
+                <button
+                  type="button"
+                  role="option"
+                  className="model-picker__option"
+                  data-value=""
+                  aria-selected={value === ''}
+                  onClick={() => choose('')}
+                >
+                  {defaultLabel}
+                </button>
+                {value !== '' && !canonicalValues.has(value) ? (
+                  <button
                     type="button"
                     role="option"
                     className="model-picker__option"
-                    data-value={optionValue}
-                    aria-selected={value === optionValue}
-                    onClick={() => choose(optionValue)}
+                    data-value={value}
+                    aria-selected
+                    onClick={() => choose(value)}
                   >
-                    {modelDisplayName(catalogue, group.provider, id)}
-                    {star}
+                    {selectedAlias === undefined
+                      ? `${value} (unavailable)`
+                      : `${modelDisplayName(
+                          catalogue,
+                          selectedAlias.provider,
+                          selectedAlias.model.id,
+                        )} — ${value} (alias)`}
                   </button>
-                );
-              })}
-            </div>
-          ))}
-          {visibleGroups.length === 0 ? (
-            <p className="model-picker__empty">No models match</p>
-          ) : null}
-        </div>
-      </ToolbarPopover>
+                ) : null}
+                {visibleGroups.map((group) => (
+                  <div key={group.provider} role="group" aria-label={group.provider}>
+                    <div className="model-picker__legend">{providerLabel(group.provider)}</div>
+                    {group.ids.map((id) => {
+                      const optionValue = selectionValue(catalogue, group.provider, id);
+                      const star = recommended === id || recommended === optionValue ? ' ★' : '';
+                      return (
+                        <button
+                          key={optionValue}
+                          type="button"
+                          role="option"
+                          className="model-picker__option"
+                          data-value={optionValue}
+                          aria-selected={value === optionValue}
+                          onClick={() => choose(optionValue)}
+                        >
+                          {modelDisplayName(catalogue, group.provider, id)}
+                          {star}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+                {visibleGroups.length === 0 ? (
+                  <p className="model-picker__empty">No models match</p>
+                ) : null}
+              </div>
+            </ToolbarPopover>,
+            document.body,
+          )
+        : null}
     </ToolbarPopoverAnchor>
   );
 }

@@ -25,7 +25,7 @@ limitations under the License.
  * Callers own the trigger and the open state, so the toolbar can enforce the
  * one-popover-at-a-time rule across the attention bell and the update button.
  */
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { defined } from '../../../shared/defined';
 
 interface ToolbarPopoverProps {
@@ -35,6 +35,7 @@ interface ToolbarPopoverProps {
   id?: string;
   /** Extra class on the surface, for per-popover width and content rules. */
   className?: string;
+  style?: CSSProperties;
   /**
    * `aside` renders a complementary landmark (the attention inbox, which stays
    * a browsable list); `section` renders a region (the update notice).
@@ -52,6 +53,7 @@ export function ToolbarPopover({
   label,
   id,
   className,
+  style,
   as = 'section',
   anchorRef,
   onDismiss,
@@ -90,6 +92,7 @@ export function ToolbarPopover({
     ref: surface,
     ...defined('id', id),
     className: className === undefined ? 'toolbar-popover' : `toolbar-popover ${className}`,
+    style,
     'aria-label': label,
     tabIndex: -1,
   };

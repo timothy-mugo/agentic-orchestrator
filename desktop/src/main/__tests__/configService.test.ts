@@ -267,8 +267,8 @@ describe('ConfigService effort routing', () => {
     ]);
   });
 
-  it('keeps at most 80 OpenCode models that Claude and Codex do not already offer', async () => {
-    const unique = Array.from({ length: 85 }, (_, index) => ({ id: `other/model-${index}` }));
+  it('keeps at most 100 OpenCode models that Claude and Codex do not already offer', async () => {
+    const unique = Array.from({ length: 105 }, (_, index) => ({ id: `other/model-${index}` }));
     const opencode = [
       { id: 'github-copilot/claude-opus-5-5', aliases: ['opus'] },
       { id: 'openai/gpt-6.1-sol[500K]' },

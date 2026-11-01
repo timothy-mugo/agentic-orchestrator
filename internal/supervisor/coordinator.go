@@ -2257,6 +2257,8 @@ func harnessDisplayName(harness string) string {
 		return "Claude"
 	case "opencode":
 		return "OpenCode"
+	case "cursor":
+		return "Cursor"
 	}
 	return harness
 }

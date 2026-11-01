@@ -16,12 +16,14 @@ limitations under the License.
 
 import { describe, expect, it, vi } from 'vitest';
 import { supervisorMarkerRecord, supervisorRecord } from '../../test/agenticoMock';
+import type { ModelCatalogue } from '../../../../shared/ipc';
 import type { SupervisorStatusInput } from './supervisorModel';
 import {
   harnessLabel,
   markerNoticeText,
   mergeRecords,
   mergeSnapshotRecords,
+  supervisorHarnessGroups,
   supervisorConversationBuilder,
   supervisorConversationTail,
   supervisorChipLabel,
@@ -50,6 +52,19 @@ describe('supervisorModel', () => {
     expect(supervisorChipLabel({ harness: 'claude', model: 'opus', effort: 'xhigh' }, null)).toBe(
       'Claude opus · XHigh',
     );
+  });
+
+  it('lists Cursor with the other Supervisor harnesses', () => {
+    const catalogue: ModelCatalogue = {
+      providerOrder: ['claude', 'cursor'],
+      providerModels: { claude: [{ id: 'opus' }], cursor: [{ id: 'auto' }] },
+      phaseDefaults: {},
+      phaseProviderModels: { chat: { claude: ['opus'], cursor: ['auto'] } },
+    };
+    expect(supervisorHarnessGroups(catalogue).map(({ harness }) => harness)).toEqual([
+      'claude',
+      'cursor',
+    ]);
   });
 
   it('orders the status line Rebuilding over Starting over Waiting over Working over Failed over Paused over Ready', () => {

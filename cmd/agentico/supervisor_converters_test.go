@@ -23,12 +23,13 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm"
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm/opencode"
 	"github.com/doordash-oss/agentic-orchestrator/internal/supervisor"
+	"github.com/doordash-oss/agentic-orchestrator/internal/supervisor/cursorsession"
 )
 
 func TestSupervisorConvertersRegisterEveryHarness(t *testing.T) {
 	converters := supervisorConverters(nil)
 	openCodeName := opencode.New("", nil).Name()
-	for _, harness := range []string{"claude", "codex", openCodeName} {
+	for _, harness := range []string{"claude", "codex", openCodeName, cursorsession.Harness} {
 		c, ok := converters[harness]
 		if !ok || c.Harness() != harness {
 			t.Fatalf("converter for %s = %v", harness, c)
@@ -41,9 +42,11 @@ func TestSupervisorConvertersRegisterEveryHarness(t *testing.T) {
 	if _, ok := converters["claude"].(supervisor.HarnessAssignedIDs); ok {
 		t.Fatal("Claude resumes under a pre-assigned id")
 	}
-	seeder, ok := converters[openCodeName].(supervisor.HistorySeeder)
-	if !ok || !seeder.SeedsHistory() {
-		t.Fatal("the OpenCode converter must declare that it seeds history")
+	for _, harness := range []string{openCodeName, cursorsession.Harness} {
+		seeder, ok := converters[harness].(supervisor.HistorySeeder)
+		if !ok || !seeder.SeedsHistory() {
+			t.Fatalf("the %s converter must declare that it seeds history", harness)
+		}
 	}
 	for _, harness := range []string{"claude", "codex"} {
 		if _, ok := converters[harness].(supervisor.HistorySeeder); ok {

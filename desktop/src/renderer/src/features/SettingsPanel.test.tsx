@@ -136,8 +136,13 @@ describe('SettingsPanel provider refresh', () => {
     // model pickers show it as soon as the Workspace defaults pane is shown.
     rerender(<SettingsPanel pane="workspace-defaults" />);
     const picker = await screen.findByLabelText('Implementation model');
+    await userEvent.click(picker);
     await waitFor(() =>
-      expect(within(picker).getByRole('option', { name: /New Claude/ })).toHaveValue('claude:new'),
+      expect(
+        within(screen.getByRole('listbox', { name: 'Matching models' })).getByRole('option', {
+          name: /New Claude/,
+        }),
+      ).toHaveAttribute('data-value', 'claude:new'),
     );
   });
 

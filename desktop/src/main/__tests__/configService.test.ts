@@ -16,6 +16,7 @@ limitations under the License.
 
 import { describe, expect, it } from 'vitest';
 import { ConfigService } from '../configService';
+import { CATALOGUE_MODELS_PER_PROVIDER, ModelCatalogueSchema } from '../../shared/ipc';
 import type { ApiRequestInit, HttpResult } from '../gateway/runtimeGateway';
 
 interface Call {
@@ -266,8 +267,8 @@ describe('ConfigService effort routing', () => {
     ]);
   });
 
-  it('keeps at most 80 OpenCode models that Claude and Codex do not already offer', async () => {
-    const unique = Array.from({ length: 85 }, (_, index) => ({ id: `other/model-${index}` }));
+  it('keeps at most 100 OpenCode models that Claude and Codex do not already offer', async () => {
+    const unique = Array.from({ length: 105 }, (_, index) => ({ id: `other/model-${index}` }));
     const opencode = [
       { id: 'github-copilot/claude-opus-5-5', aliases: ['opus'] },
       { id: 'openai/gpt-6.1-sol[500K]' },
@@ -312,5 +313,38 @@ describe('ConfigService effort routing', () => {
     expect(catalogue.phaseDefaults.implementation).toBe('codex:gpt-6.1-sol[872K]');
     expect(catalogue.phaseDefaults.review).toBe('opencode:other/model-0');
     expect(catalogue.phaseDefaults.planning).toBe('claude:opus');
+  });
+
+  it('keeps a long Cursor model list inside the catalogue schema limit', async () => {
+    const cursor = Array.from({ length: CATALOGUE_MODELS_PER_PROVIDER + 1 }, (_, index) => ({
+      id: `cursor-model-${index}`,
+      display_name: `Cursor ${index}`,
+      category: 'balanced',
+    }));
+    const { service } = makeService(() => ({
+      status: 200,
+      body: {
+        api_version: 'v1',
+        provider_order: ['claude', 'cursor'],
+        provider_models: {
+          claude: [{ id: 'opus', display_name: 'Opus', category: 'balanced' }],
+          cursor,
+        },
+        phase_defaults: { implementation: `cursor:cursor-model-${CATALOGUE_MODELS_PER_PROVIDER}` },
+        phase_provider_models: {
+          implementation: { cursor: cursor.map((model) => model.id) },
+          chat: { cursor: cursor.map((model) => model.id) },
+        },
+      },
+    }));
+
+    const catalogue = await service.getModelCatalogue();
+    const kept = cursor.slice(0, CATALOGUE_MODELS_PER_PROVIDER).map((model) => model.id);
+
+    expect(catalogue.providerModels.cursor?.map((model) => model.id)).toEqual(kept);
+    expect(catalogue.phaseProviderModels.implementation?.cursor).toEqual(kept);
+    expect(catalogue.phaseProviderModels.chat?.cursor).toEqual(kept);
+    expect(catalogue.phaseDefaults.implementation).toBe('cursor:cursor-model-0');
+    expect(ModelCatalogueSchema.safeParse(catalogue).success).toBe(true);
   });
 });

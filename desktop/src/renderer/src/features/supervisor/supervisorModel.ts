@@ -105,21 +105,22 @@ interface SupervisorHarnessGroup {
 }
 
 /**
- * Every detected harness in the catalogue's provider order, each with its
- * chat-eligible models. A harness with nothing eligible stays listed with an
- * empty model list, so the popover can say so instead of hiding it.
+ * Every Supervisor-supported detected harness in the catalogue's provider
+ * order, each with its chat-eligible models. A harness with nothing eligible
+ * stays listed with an empty model list, so the popover can say so instead of
+ * hiding it.
  */
 export function supervisorHarnessGroups(catalogue: ModelCatalogue): SupervisorHarnessGroup[] {
   const eligibleByHarness = catalogue.phaseProviderModels[SUPERVISOR_CATALOGUE_ROLE] ?? {};
   return catalogue.providerOrder.map((harness) => {
-    const known = catalogue.providerModels[harness] ?? [];
-    const eligible = eligibleByHarness[harness] ?? [];
-    return {
-      harness,
-      label: harnessLabel(harness),
-      models: [...new Set(eligible)].map((id) => known.find((model) => model.id === id) ?? { id }),
-    };
-  });
+      const known = catalogue.providerModels[harness] ?? [];
+      const eligible = eligibleByHarness[harness] ?? [];
+      return {
+        harness,
+        label: harnessLabel(harness),
+        models: [...new Set(eligible)].map((id) => known.find((model) => model.id === id) ?? { id }),
+      };
+    });
 }
 
 export function findCatalogueModel(

@@ -458,7 +458,13 @@ describe('the creation sheet across its four steps', () => {
     expect(
       screen.getByLabelText('Planning effort').closest('.config-editor__phase-row-picks'),
     ).toBe(picksUnit);
-    await user.selectOptions(planningPicker, 'claude-opus');
+    await user.click(planningPicker);
+    const planningModels = screen.getByRole('listbox', { name: 'Matching models' });
+    const opus = within(planningModels)
+      .getAllByRole('option')
+      .find((option) => option.getAttribute('data-value') === 'claude-opus');
+    if (opus === undefined) throw new Error('missing claude-opus option');
+    await user.click(opus);
     await user.selectOptions(screen.getByLabelText('Planning effort'), 'max');
     await user.click(screen.getByRole('button', { name: 'Create and start' }));
 

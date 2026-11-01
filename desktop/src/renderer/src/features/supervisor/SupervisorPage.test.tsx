@@ -328,6 +328,22 @@ describe('SupervisorPage settings', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
   });
 
+  it('filters supervisor models by search text and provider', async () => {
+    await renderPage();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId('supervisor-model-chip'));
+    const popover = screen.getByRole('region', { name: 'Harness and model' });
+    await user.type(within(popover).getByLabelText('Filter models'), 'son');
+    expect(within(popover).queryByRole('radio', { name: 'Opus' })).toBeNull();
+    expect(within(popover).getByRole('radio', { name: 'Sonnet' })).toBeInTheDocument();
+
+    await user.clear(within(popover).getByLabelText('Filter models'));
+    await user.click(within(popover).getByRole('button', { name: 'Codex' }));
+    expect(within(popover).queryByRole('group', { name: 'Claude' })).toBeNull();
+    expect(within(popover).getByRole('group', { name: 'Codex' })).toBeInTheDocument();
+  });
+
   it('says so when a harness has no usable models', async () => {
     await renderPage();
     const user = userEvent.setup();

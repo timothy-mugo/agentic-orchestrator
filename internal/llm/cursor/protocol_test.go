@@ -222,6 +222,35 @@ func TestPermissionAndQuestion(t *testing.T) {
 	}
 }
 
+func TestRememberPermissionFallsBackToOfferedOptionAndMissingOptionsCancel(t *testing.T) {
+	var buf bytes.Buffer
+	p := newProtocol(llm.ProtocolOpts{})
+	p.SetStdin(&buf)
+
+	msgs, _ := p.ParseLine([]byte(`{"jsonrpc":"2.0","id":9,"method":"session/request_permission","params":{"toolCall":{"kind":"execute","title":"ls"},"options":[{"optionId":"allow-once","kind":"allow_once"}]}}`))
+	if len(msgs) != 1 || msgs[0].ControlRequest == nil {
+		t.Fatalf("permission = %+v", msgs)
+	}
+	if err := p.RespondToControlRemember(msgs[0].ControlRequest.RequestID); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), `"optionId":"allow-once"`) || strings.Contains(buf.String(), `"optionId":"allow-always"`) {
+		t.Fatalf("remember response = %s", buf.String())
+	}
+
+	buf.Reset()
+	msgs, _ = p.ParseLine([]byte(`{"jsonrpc":"2.0","id":10,"method":"session/request_permission","params":{"toolCall":{"kind":"execute","title":"ls"},"options":[]}}`))
+	if len(msgs) != 1 || msgs[0].ControlRequest == nil {
+		t.Fatalf("permission without options = %+v", msgs)
+	}
+	if err := p.RespondToControl(msgs[0].ControlRequest.RequestID, true, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), `"outcome":"cancelled"`) {
+		t.Fatalf("missing-option response = %s", buf.String())
+	}
+}
+
 func TestSkipPermissionsAutoAllows(t *testing.T) {
 	var buf bytes.Buffer
 	p := newProtocol(llm.ProtocolOpts{DSP: true})
@@ -232,5 +261,11 @@ func TestSkipPermissionsAutoAllows(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `"optionId":"allow-once"`) {
 		t.Fatalf("auto-allow = %s", buf.String())
+	}
+
+	buf.Reset()
+	p.ParseLine([]byte(`{"jsonrpc":"2.0","id":4,"method":"session/request_permission","params":{"toolCall":{"kind":"edit","title":"write"},"options":[{"optionId":"reject-once","kind":"reject_once"}]}}`))
+	if !strings.Contains(buf.String(), `"outcome":"cancelled"`) {
+		t.Fatalf("DSP missing-option response = %s", buf.String())
 	}
 }

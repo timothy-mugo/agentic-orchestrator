@@ -370,7 +370,13 @@ func (p *Protocol) finishPrompt(failed bool, result, rpcErr json.RawMessage) []l
 	}
 	out := make([]llm.SDKMessage, 0, 2)
 	if !msg.Result.IsError && text != "" {
-		out = append(out, assistantText(text, false))
+		out = append(out, root(llm.SDKMessage{
+			Type: "assistant",
+			Assistant: &llm.AssistantMessage{
+				Type:    "assistant",
+				Message: llm.ConversationMsg{Role: "assistant", Content: []llm.ContentBlock{{Type: "text", Text: text}}},
+			},
+		}))
 	}
 	out = append(out, root(msg))
 	if next != "" {
@@ -699,15 +705,6 @@ func classifyOptions(options []struct {
 				reject = opt.OptionID
 			}
 		}
-	}
-	if allow == "" {
-		allow = "allow-once"
-	}
-	if always == "" {
-		always = "allow-always"
-	}
-	if reject == "" {
-		reject = "reject-once"
 	}
 	return allow, always, reject
 }

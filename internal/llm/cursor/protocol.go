@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,7 +37,10 @@ type Protocol struct {
 	handshakeErr error
 
 	sessionID    string
-	systemSent   bool
+	contextSent  bool
+	seedLoaded   bool
+	seedText     string
+	seedErr      error
 	promptActive bool
 	queue        []string
 	turnText     strings.Builder
@@ -132,6 +136,9 @@ func (p *Protocol) Handshake(ctx context.Context) error {
 		if err := p.wait(ctx, p.modelDone, "session/set_model"); err != nil {
 			return err
 		}
+	}
+	if _, err := p.historySeed(); err != nil {
+		return err
 	}
 	if p.opts.Interactive && p.opts.InitialPrompt == "" {
 		return nil
@@ -522,14 +529,28 @@ func (p *Protocol) handleUpdate(params json.RawMessage) []llm.SDKMessage {
 }
 
 func (p *Protocol) sendPrompt(text string) error {
+	seed, err := p.historySeed()
+	if err != nil {
+		return err
+	}
 	p.mu.Lock()
-	if p.opts.SystemPrompt != "" && !p.systemSent {
-		p.systemSent = true
-		if text == "" {
-			text = p.opts.SystemPrompt
-		} else {
-			text = p.opts.SystemPrompt + "\n\n" + text
+	if !p.contextSent {
+		var parts []string
+		if p.opts.SystemPrompt != "" {
+			parts = append(parts, p.opts.SystemPrompt)
 		}
+		if seed != "" {
+			parts = append(parts, seed)
+		}
+		if len(parts) > 0 {
+			prefix := strings.Join(parts, "\n\n")
+			if text == "" {
+				text = prefix
+			} else {
+				text = prefix + "\n\n" + text
+			}
+		}
+		p.contextSent = true
 	}
 	sid := p.sessionID
 	p.turnText.Reset()
@@ -538,6 +559,34 @@ func (p *Protocol) sendPrompt(text string) error {
 		"sessionId": sid,
 		"prompt":    []map[string]string{{"type": "text", "text": text}},
 	}, &p.promptID)
+}
+
+func (p *Protocol) historySeed() (string, error) {
+	p.mu.Lock()
+	if p.seedLoaded {
+		text, err := p.seedText, p.seedErr
+		p.mu.Unlock()
+		return text, err
+	}
+	path := p.opts.SeedHistoryPath
+	p.mu.Unlock()
+	var data []byte
+	var err error
+	if path != "" {
+		data, err = os.ReadFile(path)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.seedLoaded {
+		return p.seedText, p.seedErr
+	}
+	p.seedLoaded = true
+	if err != nil {
+		p.seedErr = fmt.Errorf("read cursor history seed: %w", err)
+		return "", p.seedErr
+	}
+	p.seedText = string(data)
+	return p.seedText, nil
 }
 
 func (p *Protocol) send(method string, params any, slot *int) error {

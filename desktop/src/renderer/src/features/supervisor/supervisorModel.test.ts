@@ -54,14 +54,17 @@ describe('supervisorModel', () => {
     );
   });
 
-  it('omits harnesses without Supervisor history restoration', () => {
+  it('lists Cursor with the other Supervisor harnesses', () => {
     const catalogue: ModelCatalogue = {
       providerOrder: ['claude', 'cursor'],
       providerModels: { claude: [{ id: 'opus' }], cursor: [{ id: 'auto' }] },
       phaseDefaults: {},
       phaseProviderModels: { chat: { claude: ['opus'], cursor: ['auto'] } },
     };
-    expect(supervisorHarnessGroups(catalogue).map(({ harness }) => harness)).toEqual(['claude']);
+    expect(supervisorHarnessGroups(catalogue).map(({ harness }) => harness)).toEqual([
+      'claude',
+      'cursor',
+    ]);
   });
 
   it('orders the status line Rebuilding over Starting over Waiting over Working over Failed over Paused over Ready', () => {

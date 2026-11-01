@@ -54,6 +54,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/supervisor"
 	"github.com/doordash-oss/agentic-orchestrator/internal/supervisor/claudesession"
 	"github.com/doordash-oss/agentic-orchestrator/internal/supervisor/codexsession"
+	"github.com/doordash-oss/agentic-orchestrator/internal/supervisor/cursorsession"
 	"github.com/doordash-oss/agentic-orchestrator/internal/supervisor/opencodesession"
 	"github.com/doordash-oss/agentic-orchestrator/internal/workadmission"
 	"go.uber.org/fx"
@@ -1652,14 +1653,17 @@ func newSupervisorCoordinator(boot *runtimeBootstrap) (*supervisor.Coordinator, 
 }
 
 // supervisorConverters restores history for every harness: Claude and Codex
-// resume a rebuilt native session, OpenCode receives a history seed sized
-// from the registry's model catalog.
+// resume a rebuilt native session, and OpenCode and Cursor receive a history
+// seed sized from the registry's model catalog.
 func supervisorConverters(registry *llm.Registry) map[string]supervisor.Converter {
 	return map[string]supervisor.Converter{
 		claudesession.Harness: claudesession.New(claudesession.Options{}),
 		codexsession.Harness:  codexsession.New(codexsession.Options{}),
 		opencodesession.Harness: opencodesession.New(opencodesession.Options{
 			ContextWindow: opencodesession.RegistryContextWindow(registry),
+		}),
+		cursorsession.Harness: cursorsession.New(cursorsession.Options{
+			ContextWindow: cursorsession.RegistryContextWindow(registry),
 		}),
 	}
 }

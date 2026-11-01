@@ -27,6 +27,7 @@ import (
 	"github.com/doordash-oss/agentic-orchestrator/internal/config"
 	"github.com/doordash-oss/agentic-orchestrator/internal/feature"
 	"github.com/doordash-oss/agentic-orchestrator/internal/llm"
+	"github.com/doordash-oss/agentic-orchestrator/internal/llm/cursor"
 	"github.com/doordash-oss/agentic-orchestrator/internal/permission"
 	"github.com/doordash-oss/agentic-orchestrator/internal/ports"
 	"github.com/doordash-oss/agentic-orchestrator/test/testutil"
@@ -138,9 +139,13 @@ func TestRegistryCatalog_ValidatesHarnessModelAndEffort(t *testing.T) {
 	if len(eligible) == 0 {
 		t.Fatal("fake Claude has no chat-eligible model")
 	}
+	reg.Register(cursor.NewProvider("sh"))
 	catalog := RegistryCatalog{Registry: reg}
 	if err := catalog.ValidateSettings(Settings{Harness: "claude", Model: eligible[0]}); err != nil {
 		t.Fatalf("eligible model with default effort: %v", err)
+	}
+	if err := catalog.ValidateSettings(Settings{Harness: "cursor", Model: "auto"}); err != nil {
+		t.Fatalf("cursor chat model: %v", err)
 	}
 	var invalid *SettingsInvalidError
 	for name, s := range map[string]Settings{
@@ -151,10 +156,6 @@ func TestRegistryCatalog_ValidatesHarnessModelAndEffort(t *testing.T) {
 		if err := catalog.ValidateSettings(s); !errors.As(err, &invalid) {
 			t.Fatalf("%s: err = %v, want SettingsInvalidError", name, err)
 		}
-	}
-	if err := catalog.ValidateSettings(Settings{Harness: "cursor", Model: "auto"}); !errors.As(err, &invalid) ||
-		!strings.Contains(err.Error(), "history restoration is not supported") {
-		t.Fatalf("Cursor settings err = %v, want unsupported history restoration", err)
 	}
 	if err := (RegistryCatalog{}).ValidateSettings(Settings{Harness: "claude", Model: eligible[0]}); !errors.As(err, &invalid) {
 		t.Fatalf("nil registry err = %v", err)

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +86,69 @@ func TestHandshakeAndPromptResult(t *testing.T) {
 		t.Fatal("reader did not finish")
 	}
 	if prompt != "be brief\n\nhello" {
+		t.Fatalf("prompt = %q", prompt)
+	}
+}
+
+func TestHistorySeedJoinsTheFirstPrompt(t *testing.T) {
+	path := t.TempDir() + "/cursor-history-seed.txt"
+	if err := os.WriteFile(path, []byte("User: remember this"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pr, pw := io.Pipe()
+	p := newProtocol(llm.ProtocolOpts{
+		WorkDir:         "/work",
+		SystemPrompt:    "be brief",
+		InitialPrompt:   "hello",
+		SeedHistoryPath: path,
+	})
+	p.SetStdin(pw)
+	var prompt string
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		sc := bufio.NewScanner(pr)
+		for sc.Scan() {
+			var req struct {
+				ID     int             `json:"id"`
+				Method string          `json:"method"`
+				Params json.RawMessage `json:"params"`
+			}
+			if json.Unmarshal(sc.Bytes(), &req) != nil {
+				continue
+			}
+			if req.Method == "session/prompt" {
+				var params struct {
+					Prompt []struct {
+						Text string `json:"text"`
+					} `json:"prompt"`
+				}
+				_ = json.Unmarshal(req.Params, &params)
+				if len(params.Prompt) > 0 {
+					prompt = params.Prompt[0].Text
+				}
+				return
+			}
+			result := map[string]any{}
+			if req.Method == "session/new" {
+				result["sessionId"] = "sess-1"
+			}
+			raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": result})
+			p.ParseLine(raw)
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := p.Handshake(ctx); err != nil {
+		t.Fatalf("Handshake() error: %v", err)
+	}
+	pw.Close()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("reader did not finish")
+	}
+	if prompt != "be brief\n\nUser: remember this\n\nhello" {
 		t.Fatalf("prompt = %q", prompt)
 	}
 }

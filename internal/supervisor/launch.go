@@ -154,9 +154,6 @@ func (c RegistryCatalog) DefaultModel(harness string) (string, error) {
 // ValidateSettings accepts a detected harness, one of its chat-eligible
 // models, and an effort the model supports (empty means the default).
 func (c RegistryCatalog) ValidateSettings(s Settings) error {
-	if s.Harness == "cursor" {
-		return &SettingsInvalidError{Reason: "history restoration is not supported for harness \"cursor\""}
-	}
 	if c.Registry == nil {
 		return &SettingsInvalidError{Reason: "no providers are available"}
 	}

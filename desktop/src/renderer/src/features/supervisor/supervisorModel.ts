@@ -112,9 +112,7 @@ interface SupervisorHarnessGroup {
  */
 export function supervisorHarnessGroups(catalogue: ModelCatalogue): SupervisorHarnessGroup[] {
   const eligibleByHarness = catalogue.phaseProviderModels[SUPERVISOR_CATALOGUE_ROLE] ?? {};
-  return catalogue.providerOrder
-    .filter((harness) => harness !== 'cursor')
-    .map((harness) => {
+  return catalogue.providerOrder.map((harness) => {
       const known = catalogue.providerModels[harness] ?? [];
       const eligible = eligibleByHarness[harness] ?? [];
       return {

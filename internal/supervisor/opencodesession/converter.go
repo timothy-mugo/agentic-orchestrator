@@ -98,6 +98,9 @@ type Options struct {
 	// model catalog. Nil, or a result of zero or less, means
 	// defaultContextWindow.
 	ContextWindow func(model string) int
+	// Harness selects checkpoints. Empty means the OpenCode harness. Cursor
+	// reuses this seed format under its own harness name.
+	Harness string
 }
 
 // Converter implements supervisor.Converter for OpenCode by writing a
@@ -151,13 +154,28 @@ func seedPath(conversationDir string) string {
 // directory, a cancelled context and any file-system failure return a plain
 // error that is not a ConversionError.
 func (c *Converter) Rebuild(ctx context.Context, in supervisor.RebuildInput) (supervisor.RebuildResult, error) {
+	opts := c.opts
+	if opts.Harness == "" {
+		opts.Harness = Harness
+	}
+	return WriteSeed(ctx, in, opts, seedFileName)
+}
+
+// WriteSeed renders in.Records and atomically replaces fileName under the
+// conversation directory. An empty selection writes nothing and returns
+// Resume=false. Cursor uses the same seed text under its own file name.
+func WriteSeed(ctx context.Context, in supervisor.RebuildInput, opts Options, fileName string) (supervisor.RebuildResult, error) {
 	if err := ctx.Err(); err != nil {
 		return supervisor.RebuildResult{}, err
 	}
-	if in.ConversationDir == "" {
-		return supervisor.RebuildResult{}, errors.New("opencode history seed: empty conversation directory")
+	harness := opts.Harness
+	if harness == "" {
+		harness = Harness
 	}
-	data, err := Render(in, c.opts)
+	if in.ConversationDir == "" {
+		return supervisor.RebuildResult{}, errors.New(harness + " history seed: empty conversation directory")
+	}
+	data, err := Render(in, opts)
 	if err != nil {
 		return supervisor.RebuildResult{}, err
 	}
@@ -167,9 +185,9 @@ func (c *Converter) Rebuild(ctx context.Context, in supervisor.RebuildInput) (su
 	if err := ctx.Err(); err != nil {
 		return supervisor.RebuildResult{}, err
 	}
-	path := seedPath(in.ConversationDir)
+	path := filepath.Join(in.ConversationDir, fileName)
 	if err := supervisor.WriteFileAtomic(path, data, 0o700, 0o600); err != nil {
-		return supervisor.RebuildResult{}, fmt.Errorf("write opencode history seed %s: %w", path, err)
+		return supervisor.RebuildResult{}, fmt.Errorf("write %s history seed %s: %w", harness, path, err)
 	}
 	return supervisor.RebuildResult{Resume: true, Path: path}, nil
 }
@@ -178,7 +196,11 @@ func (c *Converter) Rebuild(ctx context.Context, in supervisor.RebuildInput) (su
 // system. It returns nil when the selection is empty. Unrepresentable
 // records are *supervisor.ConversionError.
 func Render(in supervisor.RebuildInput, opts Options) ([]byte, error) {
-	selection, err := supervisor.SelectCheckpoint(in.Records, Harness)
+	harness := opts.Harness
+	if harness == "" {
+		harness = Harness
+	}
+	selection, err := supervisor.SelectCheckpoint(in.Records, harness)
 	if err != nil {
 		return nil, err
 	}

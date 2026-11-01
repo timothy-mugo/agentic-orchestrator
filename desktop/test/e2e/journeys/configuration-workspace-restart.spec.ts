@@ -108,7 +108,7 @@ test('configuration, workspace, and restart journey against the packaged app', a
     const implementationPicker = editor.getByLabel('Implementation model');
     await expect(implementationPicker).toBeVisible();
     await implementationPicker.click();
-    const modelList = editor.getByRole('listbox', { name: 'Matching models' });
+    const modelList = handle.page.getByRole('listbox', { name: 'Matching models' });
     const defaultOptionLabel = await modelList.getByRole('option').first().textContent();
     expect(defaultOptionLabel).toContain('Default —');
     transcript.step(`implementation picker names the effective default: "${defaultOptionLabel}"`);

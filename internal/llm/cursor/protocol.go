@@ -309,6 +309,10 @@ func (p *Protocol) handleResponse(rawID, result, rpcErr json.RawMessage) []llm.S
 			Init: &llm.SystemInitMessage{Type: "system", Subtype: "init", SessionID: sid, Model: model},
 		})}
 	case modelID:
+		if failed {
+			p.fail(p.modelDone, fmt.Errorf("cursor session/set_model failed: %s", rpcErr))
+			return nil
+		}
 		p.signal(p.modelDone)
 	case promptID:
 		return p.finishPrompt(failed, result, rpcErr)
@@ -357,7 +361,17 @@ func (p *Protocol) finishPrompt(failed bool, result, rpcErr json.RawMessage) []l
 			}
 		}
 	}
-	out := []llm.SDKMessage{root(msg)}
+	out := make([]llm.SDKMessage, 0, 2)
+	if !msg.Result.IsError && text != "" {
+		out = append(out, root(llm.SDKMessage{
+			Type: "assistant",
+			Assistant: &llm.AssistantMessage{
+				Type: "assistant",
+				Message: llm.ConversationMsg{Role: "assistant", Content: []llm.ContentBlock{{Type: "text", Text: text}}},
+			},
+		}))
+	}
+	out = append(out, root(msg))
 	if next != "" {
 		if err := p.sendPrompt(next); err != nil {
 			out = append(out, root(llm.SDKMessage{Type: "result", Result: &llm.ResultMessage{

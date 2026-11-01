@@ -460,7 +460,9 @@ function replacementForDroppedDefault(
       return multiple ? `${provider}:${model.id}` : model.id;
     }
   }
-  const source = splitSelection(value).provider;
+  const source =
+    splitSelection(value).provider ??
+    (catalogue.providerOrder.length === 1 ? catalogue.providerOrder[0] : undefined);
   if (source !== undefined) {
     const first =
       catalogue.phaseProviderModels[role]?.[source]?.[0] ??

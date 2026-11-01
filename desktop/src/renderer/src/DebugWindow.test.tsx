@@ -55,4 +55,147 @@ describe('DebugWindow', () => {
     render(<DebugWindow />);
     expect(await screen.findByText('Logs could not be loaded.')).toBeTruthy();
   });
+
+  it('filters the open log as the search changes', async () => {
+    const mock = installAgenticoMock();
+    mock.api.getDebugLogs.mockResolvedValue({ lines: ['runtime ready', 'gateway attached'] });
+    render(<DebugWindow />);
+    await screen.findByText('runtime ready');
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search logs' }), 'gateway');
+
+    const log = screen.getByRole('log', { name: 'Runtime logs' });
+    expect(log.textContent).toBe('gateway attached');
+    expect(screen.getByRole('status').textContent).toBe('1 of 2');
+  });
+
+  it('lists each running feature with its model, task, and current activity', async () => {
+    const mock = installAgenticoMock();
+    mock.api.listFeatures.mockResolvedValue({
+      features: [
+        featureSummary('abcd1234ef567890', 'Search box', 'Implementing'),
+        featureSummary('idle1234ef567890ab', 'Idle feature', 'Published'),
+      ],
+      warnings: [],
+    });
+    mock.api.getLivePreview.mockResolvedValue({
+      featureId: 'abcd1234ef567890',
+      activity: 'running',
+      contextPercentage: 10,
+      totalSeconds: 4,
+      totalUsd: 0,
+      session: {
+        id: 'sess-1',
+        featureId: 'abcd1234ef567890',
+        runNumber: 1,
+        phase: 'Implement',
+        kind: 'phase',
+        provider: 'anthropic',
+        model: 'claude-opus',
+        status: 'running',
+        startedAt: '2026-11-01T00:00:00Z',
+        taskActivities: [
+          {
+            taskId: 'task-1',
+            description: 'Add log search',
+            state: 'running',
+            lastToolName: 'Bash',
+            startedAt: '2026-11-01T00:00:00Z',
+            updatedAt: '2026-11-01T00:00:01Z',
+          },
+        ],
+        runningTaskCount: 1,
+        usage: {},
+      },
+      transcript: [],
+    });
+    render(<DebugWindow />);
+
+    const feature = await screen.findByRole('option', { name: 'Search box' });
+    expect(screen.queryByRole('option', { name: 'Idle feature' })).toBeNull();
+    await userEvent.click(feature);
+
+    const log = screen.getByRole('log', { name: 'Feature logs' });
+    expect(log.textContent).toContain('model: anthropic / claude-opus');
+    expect(log.textContent).toContain('task: Implement · Add log search');
+    expect(log.textContent).toContain('doing: Using bash');
+    expect(mock.api.getLivePreview).toHaveBeenCalledWith('abcd1234ef567890');
+  });
+
+  it('opens an agent task log with that task’s progress', async () => {
+    const mock = installAgenticoMock();
+    mock.api.listFeatures.mockResolvedValue({
+      features: [featureSummary('abcd1234ef567890', 'Search box', 'Implementing')],
+      warnings: [],
+    });
+    mock.api.getLivePreview.mockResolvedValue({
+      featureId: 'abcd1234ef567890',
+      activity: 'running',
+      contextPercentage: 10,
+      totalSeconds: 4,
+      totalUsd: 0,
+      session: {
+        id: 'sess-1',
+        featureId: 'abcd1234ef567890',
+        runNumber: 1,
+        phase: 'Implement',
+        kind: 'phase',
+        provider: 'anthropic',
+        model: 'claude-opus',
+        status: 'running',
+        startedAt: '2026-11-01T00:00:00Z',
+        taskActivities: [
+          {
+            taskId: 'task-1',
+            description: 'Add log search',
+            state: 'running',
+            lastToolName: 'Bash',
+            toolUses: 2,
+            startedAt: '2026-11-01T00:00:00Z',
+            updatedAt: '2026-11-01T00:00:01Z',
+          },
+        ],
+        runningTaskCount: 1,
+        usage: {},
+      },
+      transcript: [
+        {
+          index: 0,
+          role: 'system',
+          type: 'task_progress',
+          task: { id: 'task-1', lastToolName: 'Read' },
+        },
+        {
+          index: 1,
+          role: 'system',
+          type: 'task_progress',
+          task: { id: 'task-1', lastToolName: 'Bash' },
+        },
+      ],
+    });
+    render(<DebugWindow />);
+
+    await userEvent.click(await screen.findByRole('option', { name: 'Add log search' }));
+
+    const log = screen.getByRole('log', { name: 'Task logs' });
+    expect(log.textContent).toContain('state: running');
+    expect(log.textContent).toContain('progress: 2 tool uses');
+    expect(log.textContent).toContain('doing: Using read');
+    expect(log.textContent).toContain('doing: Using bash');
+  });
 });
+
+function featureSummary(id: string, name: string, status: string) {
+  return {
+    id,
+    name,
+    status,
+    currentPhase: 'Implement',
+    repos: [],
+    createdAt: '2026-11-01T00:00:00Z',
+    activeRun: 1,
+    runCount: 1,
+    warnings: [],
+    errors: [],
+  };
+}

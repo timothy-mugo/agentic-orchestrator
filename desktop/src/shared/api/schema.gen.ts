@@ -2548,6 +2548,8 @@ export interface components {
             checkpoints: unknown;
             automatic_review_enabled?: boolean;
             dangerously_skip_permissions?: boolean;
+            /** @description When true, programmatic commits omit the Co-authored-by trailer. Absent or false keeps the trailer. */
+            disable_coauthor_commits?: boolean;
         };
         NotificationConfig: {
             mute_feature_input: boolean;

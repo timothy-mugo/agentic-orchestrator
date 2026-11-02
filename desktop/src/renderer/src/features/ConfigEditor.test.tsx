@@ -519,6 +519,7 @@ const DEFAULTS: WorkspaceDefaults = {
   pipeline: 'large',
   muteFeatureInput: false,
   automaticReviewEnabled: false,
+  coauthorCommits: true,
 };
 
 describe('WorkspaceDefaultsPanel', () => {
@@ -620,6 +621,26 @@ describe('WorkspaceDefaultsPanel', () => {
     expect(mock.api.updateWorkspaceDefaults).toHaveBeenCalledWith({
       ...DEFAULTS,
       muteFeatureInput: true,
+    });
+  });
+
+  it('saves the Co-authored-by switch for the workspace', async () => {
+    const mock = installAgenticoMock();
+    mock.api.getWorkspaceDefaults.mockResolvedValue(DEFAULTS);
+    mock.api.getModelCatalogue.mockResolvedValue(CATALOGUE);
+    mock.api.updateWorkspaceDefaults.mockResolvedValue({ ...DEFAULTS, coauthorCommits: false });
+    render(<WorkspaceDefaultsPanel />);
+    const user = userEvent.setup();
+
+    const toggle = await screen.findByRole('checkbox', { name: 'Co-authored-by' });
+    expect(toggle).toBeChecked();
+    await user.click(toggle);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(mock.api.updateWorkspaceDefaults).toHaveBeenCalledTimes(1));
+    expect(mock.api.updateWorkspaceDefaults).toHaveBeenCalledWith({
+      ...DEFAULTS,
+      coauthorCommits: false,
     });
   });
 });

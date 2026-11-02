@@ -993,6 +993,9 @@ func mergeRuntimeDefaultsMutation(dst *config.DefaultsConfig, patch serverruntim
 	if patch.AutomaticReviewEnabled != nil && setIfChanged(&dst.AutomaticReviewEnabled, *patch.AutomaticReviewEnabled) {
 		changed = true
 	}
+	if patch.DisableCoauthorCommits != nil && setIfChanged(&dst.DisableCoauthorCommits, *patch.DisableCoauthorCommits) {
+		changed = true
+	}
 	return changed
 }
 

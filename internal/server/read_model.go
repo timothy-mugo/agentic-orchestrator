@@ -1502,6 +1502,7 @@ func featureDefaultsDTO(defaults config.DefaultsConfig) FeatureDefaults {
 		Checkpoints:                defaults.Checkpoints,
 		AutomaticReviewEnabled:     defaults.AutomaticReviewEnabled,
 		DangerouslySkipPermissions: defaults.DangerouslySkipPermissions,
+		DisableCoauthorCommits:     defaults.DisableCoauthorCommits,
 	}
 }
 

@@ -5311,6 +5311,11 @@ components:
           type: boolean
         dangerously_skip_permissions:
           type: boolean
+        disable_coauthor_commits:
+          type: boolean
+          description: >-
+            When true, programmatic commits omit the Co-authored-by trailer.
+            Absent or false keeps the trailer.
     NotificationConfig:
       type: object
       required: [mute_feature_input]

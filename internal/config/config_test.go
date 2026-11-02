@@ -928,6 +928,49 @@ func TestLoadOrCreateWithStatus_ExistingConfig(t *testing.T) {
 	}
 }
 
+func TestDisableCoauthorCommitsConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`defaults:
+  models:
+    research: opus
+    planning: opus
+    implementation: opus
+    review: codex
+  disable_coauthor_commits: true
+`)
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !loaded.Defaults.DisableCoauthorCommits {
+		t.Fatal("disable_coauthor_commits: true did not load")
+	}
+
+	loaded.Defaults.DisableCoauthorCommits = false
+	if err := Save(path, loaded); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read saved config: %v", err)
+	}
+	if strings.Contains(string(data), "disable_coauthor_commits") {
+		t.Fatalf("saving the default wrote disable_coauthor_commits:\n%s", data)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.Defaults.DisableCoauthorCommits {
+		t.Fatal("absent disable_coauthor_commits loaded as disabled")
+	}
+}
+
 func TestMuteFeatureInputNotificationConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

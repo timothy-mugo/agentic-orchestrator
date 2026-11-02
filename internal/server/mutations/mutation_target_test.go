@@ -1163,6 +1163,43 @@ func TestServerMutationTargetRuntimeConfigCanDisableAllCheckpoints(t *testing.T)
 	}
 }
 
+func TestServerMutationTargetRuntimeConfigPersistsCoauthorSwitch(t *testing.T) {
+	runtimeDir := t.TempDir()
+	configPath := filepath.Join(runtimeDir, "config.yaml")
+	cfg := config.NewDefault()
+	if err := config.Save(configPath, cfg); err != nil {
+		t.Fatalf("Save config error = %v", err)
+	}
+	target := newMutationTarget(Deps{Config: cfg, ConfigPath: configPath})
+	disabled := true
+
+	if _, err := target.RuntimeConfig(serverruntime.RuntimeConfigMutationRequest{
+		Defaults: serverruntime.RuntimeDefaultsMutation{DisableCoauthorCommits: &disabled},
+	}); err != nil {
+		t.Fatalf("RuntimeConfig() error = %v", err)
+	}
+	if !cfg.Defaults.DisableCoauthorCommits {
+		t.Fatal("in-memory coauthor switch stayed enabled")
+	}
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("Load config error = %v", err)
+	}
+	if !loaded.Defaults.DisableCoauthorCommits {
+		t.Fatal("persisted config did not record disable_coauthor_commits")
+	}
+
+	enabled := false
+	if _, err := target.RuntimeConfig(serverruntime.RuntimeConfigMutationRequest{
+		Defaults: serverruntime.RuntimeDefaultsMutation{DisableCoauthorCommits: &enabled},
+	}); err != nil {
+		t.Fatalf("RuntimeConfig() re-enable error = %v", err)
+	}
+	if cfg.Defaults.DisableCoauthorCommits {
+		t.Fatal("in-memory coauthor switch stayed disabled")
+	}
+}
+
 func checkpointsEnabled(checkpoints config.Checkpoints) bool {
 	return checkpoints.InquiryReview ||
 		checkpoints.ResearchReview ||

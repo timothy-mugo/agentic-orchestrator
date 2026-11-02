@@ -638,6 +638,8 @@ interface ConfigFormProps {
   onChange(next: ConfigFormValue): void;
   onInputAlertsChange(value: string): void;
   onAutomaticReviewChange(value: string): void;
+  /** Workspace-only. Feature configs leave this unset. */
+  coauthor?: { checked: boolean; onChange(checked: boolean): void };
 }
 
 function SkipPermissionsConfirmation({
@@ -705,6 +707,7 @@ function ConfigForm({
   onChange,
   onInputAlertsChange,
   onAutomaticReviewChange,
+  coauthor,
 }: ConfigFormProps) {
   const inquirenessName = useId();
   const autoModeName = useId();
@@ -849,6 +852,20 @@ function ConfigForm({
             ))}
           </div>
         </div>
+        {coauthor !== undefined ? (
+          <label className="config-editor__gate">
+            <input
+              type="checkbox"
+              checked={coauthor.checked}
+              aria-label="Co-authored-by"
+              onChange={(event) => coauthor.onChange(event.target.checked)}
+            />
+            <span className="config-editor__gate-text">
+              <b>Co-authored-by</b>
+              <span>Add Agentico as a co-author on commits</span>
+            </span>
+          </label>
+        ) : null}
         {confirmSkip && (
           <SkipPermissionsConfirmation
             workspace={showUtilities}
@@ -1149,6 +1166,10 @@ export function WorkspaceDefaultsPanel({
             dangerouslySkipPermissions: mode === 'dangerously_skip_permissions',
           })
         }
+        coauthor={{
+          checked: draft.coauthorCommits,
+          onChange: (checked) => setDraft({ ...draft, coauthorCommits: checked }),
+        }}
       />
       <SaveBar
         dirty={dirty}

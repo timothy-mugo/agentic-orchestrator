@@ -209,7 +209,7 @@ func (o *Orchestrator) MergeFeatureLocal(featureID string) error {
 
 		// Commit any uncommitted changes before merging.
 		if git.HasUncommittedChanges(repoPath) {
-			if err := git.CommitAll(repoPath, "Final changes before merge"); err != nil {
+			if err := o.commitAll(repoPath, "Final changes before merge"); err != nil {
 				return fmt.Errorf("%s: commit failed: %w", repo.Name, err)
 			}
 		}

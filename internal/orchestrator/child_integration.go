@@ -293,7 +293,7 @@ func (o *Orchestrator) commitAndCompareChildHeads(child *feature.Feature, journa
 		if childWorktree == "" {
 			childWorktree = child.Repos[i].Path
 		}
-		currentHead, err := git.CommitAllAndGetHead(childWorktree, fmt.Sprintf("Integration commit for refactor child %s repo %s", child.ID, child.Repos[i].Name))
+		currentHead, err := o.commitAllAndGetHead(childWorktree, fmt.Sprintf("Integration commit for refactor child %s repo %s", child.ID, child.Repos[i].Name))
 		if err != nil {
 			return false, fmt.Errorf("committing child changes for repo %s: %w", child.Repos[i].Name, err)
 		}

@@ -78,7 +78,7 @@ func (o *Orchestrator) commitRound(input agent.RoundCommitInput) error {
 
 	var failed []string
 	for _, pc := range pending {
-		if _, err := git.CommitAllAndGetHead(pc.path, msg); err != nil {
+		if _, err := o.commitAllAndGetHead(pc.path, msg); err != nil {
 			failed = append(failed, pc.name)
 			o.emitEvent(ports.Event{
 				Type:      ports.RepoStatusChanged,

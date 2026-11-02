@@ -249,6 +249,7 @@ export class ConfigService {
       muteFeatureInput: parsed.data.notifications?.mute_feature_input ?? false,
       automaticReviewEnabled: defaults.automatic_review_enabled ?? false,
       dangerouslySkipPermissions: defaults.dangerously_skip_permissions ?? false,
+      coauthorCommits: !(defaults.disable_coauthor_commits ?? false),
     };
   }
 
@@ -264,6 +265,7 @@ export class ConfigService {
           ...definedNonEmpty('pipeline', defaults.pipeline),
           automatic_review_enabled: defaults.automaticReviewEnabled,
           dangerously_skip_permissions: defaults.dangerouslySkipPermissions ?? false,
+          disable_coauthor_commits: !defaults.coauthorCommits,
         },
         notifications: { mute_feature_input: defaults.muteFeatureInput },
       },

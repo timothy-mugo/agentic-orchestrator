@@ -38,6 +38,28 @@ const (
 	pRSignature = "\n\n---\n\n*Generated with [agentic orchestrator](" + agenticURL + ")*"
 )
 
+// CommitOptions controls trailer behavior for one programmatic commit.
+// The zero value keeps the Co-authored-by trailer.
+type CommitOptions struct {
+	// SkipCoauthor omits the Co-authored-by trailer. The workspace sets this
+	// from defaults.disable_coauthor_commits.
+	SkipCoauthor bool
+}
+
+func commitOptionsOf(opts []CommitOptions) CommitOptions {
+	if len(opts) == 0 {
+		return CommitOptions{}
+	}
+	return opts[0]
+}
+
+func applyCommitSignature(message string, opts CommitOptions) string {
+	if opts.SkipCoauthor {
+		return message
+	}
+	return message + "\n\n" + commitSignatureTrailer
+}
+
 // injectPRSignature appends the agentic orchestrator signature to a PR body or comment.
 // Idempotent — skips if the signature is already present.
 func injectPRSignature(body string) string {

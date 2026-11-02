@@ -91,7 +91,7 @@ func (o *Orchestrator) prepareTransactionCandidates(child, parent *feature.Featu
 		}
 
 		// Commit remaining child changes and capture child head.
-		childHead, err := git.CommitAllAndGetHead(childWorktree, fmt.Sprintf("Integration commit for refactor child %s repo %s", child.ID, childRepo.Name))
+		childHead, err := o.commitAllAndGetHead(childWorktree, fmt.Sprintf("Integration commit for refactor child %s repo %s", child.ID, childRepo.Name))
 		if err != nil {
 			return nil, fmt.Errorf("commit child changes for repo %s: %w", childRepo.Name, err)
 		}

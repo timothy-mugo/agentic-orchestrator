@@ -109,6 +109,7 @@ function installSettingsWindowMock(overrides: { settings?: Settings } = {}) {
     pipeline: 'large',
     muteFeatureInput: false,
     automaticReviewEnabled: false,
+    coauthorCommits: true,
   });
   mock.api.getModelCatalogue.mockResolvedValue(EMPTY_CATALOGUE);
   return mock;

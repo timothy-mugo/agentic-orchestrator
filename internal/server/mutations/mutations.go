@@ -516,6 +516,9 @@ func (t *mutationTarget) RuntimeConfig(req serverruntime.RuntimeConfigMutationRe
 		return serverruntime.RuntimeConfigUpdateResponse{}, err
 	}
 	t.cfg = cfg
+	if req.Defaults.DisableCoauthorCommits != nil {
+		t.orch.SetDisableCoauthorCommits(*req.Defaults.DisableCoauthorCommits)
+	}
 	status := resultUnchanged
 	if changed {
 		status = resultUpdated
@@ -991,6 +994,9 @@ func mergeRuntimeDefaultsMutation(dst *config.DefaultsConfig, patch serverruntim
 		changed = true
 	}
 	if patch.AutomaticReviewEnabled != nil && setIfChanged(&dst.AutomaticReviewEnabled, *patch.AutomaticReviewEnabled) {
+		changed = true
+	}
+	if patch.DisableCoauthorCommits != nil && setIfChanged(&dst.DisableCoauthorCommits, *patch.DisableCoauthorCommits) {
 		changed = true
 	}
 	return changed

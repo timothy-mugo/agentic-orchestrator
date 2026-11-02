@@ -73,7 +73,7 @@ func (o *Orchestrator) publishRepoWithOptions(featureID, repoName string, opts P
 
 	// Commit any uncommitted changes.
 	if git.HasUncommittedChanges(workDir) {
-		if commitErr := git.CommitAll(workDir, f.Name); commitErr != nil {
+		if commitErr := o.commitAll(workDir, f.Name); commitErr != nil {
 			o.storePublishFailure(f, repoName, commitErr)
 			return "", fmt.Errorf("commit failed: %w", commitErr)
 		}
@@ -163,6 +163,27 @@ func (o *Orchestrator) publishRepoWithOptions(featureID, repoName string, opts P
 	return prURL, nil
 }
 
+// commitAll stages and commits, honoring the workspace Co-authored-by switch.
+func (o *Orchestrator) commitAll(worktreePath, message string) error {
+	return git.CommitAll(worktreePath, message, o.commitSignatureOptions())
+}
+
+// commitAllAndGetHead stages and commits when the worktree is dirty, honoring
+// the workspace Co-authored-by switch.
+func (o *Orchestrator) commitAllAndGetHead(worktreePath, message string) (string, error) {
+	return git.CommitAllAndGetHead(worktreePath, message, o.commitSignatureOptions())
+}
+
+func (o *Orchestrator) commitSignatureOptions() git.CommitOptions {
+	return git.CommitOptions{SkipCoauthor: o.skipCoauthor()}
+}
+
+// skipCoauthor reports whether programmatic commits should omit the
+// Co-authored-by trailer. A missing config keeps the trailer.
+func (o *Orchestrator) skipCoauthor() bool {
+	return o.disableCoauthorCommits.Load()
+}
+
 // republishRepo pushes new local work to a repository that already has a pull
 // request and re-records the existing URL.
 func (o *Orchestrator) republishRepo(f *feature.Feature, repo feature.FeatureRepo, prURL string) (string, error) {
@@ -172,7 +193,7 @@ func (o *Orchestrator) republishRepo(f *feature.Feature, repo feature.FeatureRep
 		return "", err
 	}
 	if git.HasUncommittedChanges(workDir) {
-		if err := git.CommitAll(workDir, f.Name); err != nil {
+		if err := o.commitAll(workDir, f.Name); err != nil {
 			o.storePublishFailure(f, repo.Name, err)
 			return "", fmt.Errorf("commit failed: %w", err)
 		}

@@ -99,6 +99,7 @@ describe('ConfigService effort routing', () => {
         pipeline: 'large',
         automatic_review_enabled: true,
         dangerously_skip_permissions: true,
+        disable_coauthor_commits: true,
       },
       notifications: { mute_feature_input: false },
     };
@@ -111,12 +112,14 @@ describe('ConfigService effort routing', () => {
     const defaults = await service.getWorkspaceDefaults();
     expect(Reflect.get(defaults, 'automaticReviewEnabled')).toBe(true);
     expect(defaults.dangerouslySkipPermissions).toBe(true);
+    expect(defaults.coauthorCommits).toBe(false);
     expect(Reflect.get(defaults.models, 'automaticReview')).toBe('opencode:anthropic/claude-haiku');
 
     await service.updateWorkspaceDefaults(
       Object.assign({}, defaults, {
         automaticReviewEnabled: false,
         dangerouslySkipPermissions: false,
+        coauthorCommits: true,
       }),
     );
     expect(calls[1]?.init?.body).toEqual(
@@ -124,6 +127,7 @@ describe('ConfigService effort routing', () => {
         defaults: expect.objectContaining({
           automatic_review_enabled: false,
           dangerously_skip_permissions: false,
+          disable_coauthor_commits: false,
           models: expect.objectContaining({
             automatic_review: 'opencode:anthropic/claude-haiku',
           }),

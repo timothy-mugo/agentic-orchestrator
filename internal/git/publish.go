@@ -249,8 +249,8 @@ func HasUncommittedChangesExcludingUntracked(worktreePath string, names ...strin
 }
 
 // CommitAll stages all changes (including untracked files) and creates a commit.
-// The Agentic signature trailer is automatically appended to the commit message.
-func CommitAll(worktreePath, message string) error {
+// The Co-authored-by trailer is appended unless opts skip it.
+func CommitAll(worktreePath, message string, opts ...CommitOptions) error {
 	mu := worktreeMutationLock(worktreePath)
 	mu.Lock()
 	defer mu.Unlock()
@@ -258,8 +258,7 @@ func CommitAll(worktreePath, message string) error {
 	if out, err := runGitMutationWithLockRetry(worktreePath, "add", "-A"); err != nil {
 		return fmt.Errorf("staging changes: %s: %w", strings.TrimSpace(string(out)), err)
 	}
-	// Append Agentic signature trailer
-	message = message + "\n\n" + commitSignatureTrailer
+	message = applyCommitSignature(message, commitOptionsOf(opts))
 	if out, err := runGitMutationWithLockRetry(worktreePath, "commit", "-m", message); err != nil {
 		return fmt.Errorf("creating commit: %s: %w", strings.TrimSpace(string(out)), err)
 	}
@@ -268,8 +267,9 @@ func CommitAll(worktreePath, message string) error {
 
 // CommitAllAndGetHead stages all changes, creates a commit when needed, and
 // returns the full HEAD SHA after the operation. A clean worktree is not an
-// error; the existing HEAD SHA is returned.
-func CommitAllAndGetHead(worktreePath, message string) (string, error) {
+// error; the existing HEAD SHA is returned. The Co-authored-by trailer is
+// appended unless opts skip it.
+func CommitAllAndGetHead(worktreePath, message string, opts ...CommitOptions) (string, error) {
 	mu := worktreeMutationLock(worktreePath)
 	mu.Lock()
 	defer mu.Unlock()
@@ -285,7 +285,7 @@ func CommitAllAndGetHead(worktreePath, message string) (string, error) {
 	if strings.TrimSpace(string(out)) == "" {
 		return CurrentHeadSHA(worktreePath)
 	}
-	message = message + "\n\n" + commitSignatureTrailer
+	message = applyCommitSignature(message, commitOptionsOf(opts))
 	if out, err := runGitMutationWithLockRetry(worktreePath, "commit", "-m", message); err != nil {
 		return "", fmt.Errorf("creating commit: %s: %w", strings.TrimSpace(string(out)), err)
 	}

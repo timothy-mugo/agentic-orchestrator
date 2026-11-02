@@ -88,6 +88,16 @@ func TestInjectPRSignature_Idempotent(t *testing.T) {
 	}
 }
 
+func TestApplyCommitSignature(t *testing.T) {
+	message := "Implement the search box"
+	if got := applyCommitSignature(message, CommitOptions{}); got != message+"\n\n"+commitSignatureTrailer {
+		t.Errorf("applyCommitSignature() = %q, want the Co-authored-by trailer", got)
+	}
+	if got := applyCommitSignature(message, CommitOptions{SkipCoauthor: true}); got != message {
+		t.Errorf("applyCommitSignature(skip) = %q, want the message unchanged", got)
+	}
+}
+
 func TestConstants(t *testing.T) {
 	wantTrailer := "Co-authored-by: Agentico <noreply@doordash-oss.github.com>"
 	if commitSignatureTrailer != wantTrailer {

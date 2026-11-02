@@ -138,6 +138,7 @@ export const RuntimeConfigResponseSchema = z.object({
     pipeline: z.string().optional(),
     automatic_review_enabled: z.boolean().optional(),
     dangerously_skip_permissions: z.boolean().optional(),
+    disable_coauthor_commits: z.boolean().optional(),
   }),
   notifications: z.object({ mute_feature_input: z.boolean() }),
 });

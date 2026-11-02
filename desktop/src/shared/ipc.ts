@@ -4299,6 +4299,11 @@ const WorkspaceDefaultsSchema = z.strictObject({
   /** Default Automatic Bash review state for newly dispatched sessions. */
   automaticReviewEnabled: z.boolean(),
   dangerouslySkipPermissions: z.boolean().optional(),
+  /**
+   * When true, programmatic commits include the Co-authored-by trailer.
+   * Maps to defaults.disable_coauthor_commits in config.yaml.
+   */
+  coauthorCommits: z.boolean(),
 });
 export type WorkspaceDefaults = z.output<typeof WorkspaceDefaultsSchema>;
 

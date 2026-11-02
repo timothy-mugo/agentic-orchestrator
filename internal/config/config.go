@@ -164,6 +164,11 @@ type DefaultsConfig struct {
 	// DangerouslySkipPermissions approves permission requests in the harness without a reviewer.
 	// Explicit feature auto-mode overrides take precedence over this workspace default.
 	DangerouslySkipPermissions bool `yaml:"dangerously_skip_permissions,omitempty" json:"dangerously_skip_permissions,omitempty"`
+	// DisableCoauthorCommits omits the Co-authored-by trailer from programmatic
+	// commits. Absent or false keeps the trailer, so configs written before
+	// this field existed stay unchanged. Set it in config.yaml as
+	// defaults.disable_coauthor_commits: true.
+	DisableCoauthorCommits bool `yaml:"disable_coauthor_commits,omitempty" json:"disable_coauthor_commits,omitempty"`
 }
 
 // PipelinePreference stores the last-used feature-creation settings for a

@@ -2149,6 +2149,7 @@ function makeMockApi(
         pipeline: 'large',
         muteFeatureInput: false,
         automaticReviewEnabled: true,
+        coauthorCommits: true,
       }),
     updateWorkspaceDefaults: () => Promise.reject(new Error('unused')),
     getModelCatalogue: () =>

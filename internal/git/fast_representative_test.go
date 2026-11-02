@@ -85,6 +85,28 @@ func TestFastPublishCommitRepresentative(t *testing.T) {
 	}
 }
 
+func TestCommitAllOmitsCoauthorWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	repo := testutil.InitGitRepo(t)
+	if err := os.WriteFile(filepath.Join(repo, "file.txt"), []byte("content\n"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	if err := CommitAll(repo, "plain commit", CommitOptions{SkipCoauthor: true}); err != nil {
+		t.Fatalf("CommitAll() error = %v", err)
+	}
+	out, err := exec.Command("git", "-C", repo, "log", "-1", "--format=%B").CombinedOutput()
+	if err != nil {
+		t.Fatalf("git log: %v\n%s", err, out)
+	}
+	if strings.Contains(string(out), commitSignatureTrailer) {
+		t.Errorf("git log -1 --format=%%B = %q, want no Co-authored-by trailer", out)
+	}
+	if !strings.Contains(string(out), "plain commit") {
+		t.Errorf("git log -1 --format=%%B = %q, want the commit subject", out)
+	}
+}
+
 func TestFastWorktreeRepresentative(t *testing.T) {
 	t.Parallel()
 

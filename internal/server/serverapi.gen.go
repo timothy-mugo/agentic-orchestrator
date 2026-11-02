@@ -3052,14 +3052,17 @@ type FeatureConfigResponse struct {
 
 // FeatureDefaults defines model for FeatureDefaults.
 type FeatureDefaults struct {
-	AutomaticReviewEnabled     bool                                 `json:"automatic_review_enabled,omitempty"`
-	Checkpoints                config.Checkpoints                   `json:"checkpoints"`
-	DangerouslySkipPermissions bool                                 `json:"dangerously_skip_permissions,omitempty"`
-	Effort                     EffortConfig                         `json:"effort,omitempty"`
-	Inquireness                string                               `json:"inquireness,omitempty"`
-	Models                     ModelDefaults                        `json:"models"`
-	Pipeline                   string                               `json:"pipeline,omitempty"`
-	PipelinePreferences        map[string]config.PipelinePreference `json:"pipeline_preferences,omitempty"`
+	AutomaticReviewEnabled     bool               `json:"automatic_review_enabled,omitempty"`
+	Checkpoints                config.Checkpoints `json:"checkpoints"`
+	DangerouslySkipPermissions bool               `json:"dangerously_skip_permissions,omitempty"`
+
+	// DisableCoauthorCommits When true, programmatic commits omit the Co-authored-by trailer. Absent or false keeps the trailer.
+	DisableCoauthorCommits bool                                 `json:"disable_coauthor_commits,omitempty"`
+	Effort                 EffortConfig                         `json:"effort,omitempty"`
+	Inquireness            string                               `json:"inquireness,omitempty"`
+	Models                 ModelDefaults                        `json:"models"`
+	Pipeline               string                               `json:"pipeline,omitempty"`
+	PipelinePreferences    map[string]config.PipelinePreference `json:"pipeline_preferences,omitempty"`
 }
 
 // FeatureDetail defines model for FeatureDetail.

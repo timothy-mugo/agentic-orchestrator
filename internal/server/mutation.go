@@ -248,6 +248,9 @@ type RuntimeDefaultsMutation struct {
 	Checkpoints                *config.Checkpoints                  `json:"checkpoints,omitempty"`
 	DangerouslySkipPermissions *bool                                `json:"dangerously_skip_permissions,omitempty"`
 	AutomaticReviewEnabled     *bool                                `json:"automatic_review_enabled,omitempty"`
+	// DisableCoauthorCommits is a pointer so false remains distinguishable
+	// from an omitted patch. True omits the Co-authored-by trailer.
+	DisableCoauthorCommits *bool `json:"disable_coauthor_commits,omitempty"`
 }
 
 // ModelConfigPatch is the patch representation of config.ModelConfig for

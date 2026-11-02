@@ -181,11 +181,7 @@ func (o *Orchestrator) commitSignatureOptions() git.CommitOptions {
 // skipCoauthor reports whether programmatic commits should omit the
 // Co-authored-by trailer. A missing config keeps the trailer.
 func (o *Orchestrator) skipCoauthor() bool {
-	runner := o.deps.PhaseRunner
-	if runner == nil || runner.Config == nil {
-		return false
-	}
-	return runner.Config.Defaults.DisableCoauthorCommits
+	return o.disableCoauthorCommits.Load()
 }
 
 // republishRepo pushes new local work to a repository that already has a pull

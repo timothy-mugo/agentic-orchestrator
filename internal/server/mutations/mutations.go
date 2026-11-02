@@ -516,6 +516,9 @@ func (t *mutationTarget) RuntimeConfig(req serverruntime.RuntimeConfigMutationRe
 		return serverruntime.RuntimeConfigUpdateResponse{}, err
 	}
 	t.cfg = cfg
+	if req.Defaults.DisableCoauthorCommits != nil {
+		t.orch.SetDisableCoauthorCommits(*req.Defaults.DisableCoauthorCommits)
+	}
 	status := resultUnchanged
 	if changed {
 		status = resultUpdated

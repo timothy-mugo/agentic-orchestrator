@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/doordash-oss/agentic-orchestrator/internal/agent"
@@ -194,10 +195,11 @@ type phaseStartResult struct {
 
 // Orchestrator coordinates feature lifecycle and external operations.
 type Orchestrator struct {
-	deps    Deps
-	hooks   Hooks
-	eventCh chan ports.Event
-	mu      sync.RWMutex
+	deps                   Deps
+	hooks                  Hooks
+	eventCh                chan ports.Event
+	mu                     sync.RWMutex
+	disableCoauthorCommits atomic.Bool
 
 	// relationshipMu serializes relationship-aware guard checks with
 	// child creation. Mutation guard callers acquire a read lock for the
@@ -312,6 +314,9 @@ func New(deps Deps, hooks Hooks) *Orchestrator {
 		doneCh:    make(chan struct{}),
 		admission: newFeatureAdmissions(deps.Admission),
 	}
+	if deps.PhaseRunner != nil && deps.PhaseRunner.Config != nil {
+		o.disableCoauthorCommits.Store(deps.PhaseRunner.Config.Defaults.DisableCoauthorCommits)
+	}
 	o.supervisor = newPhaseSupervisor(phaseSupervisorConfig{
 		Completion:        o,
 		Sessions:          o.deps.Sessions,
@@ -374,6 +379,14 @@ func New(deps Deps, hooks Hooks) *Orchestrator {
 	}
 	o.worktreeFingerprintFn = gitWorktreeFingerprint
 	return o
+}
+
+// SetDisableCoauthorCommits updates whether programmatic commits omit the
+// Co-authored-by trailer.
+func (o *Orchestrator) SetDisableCoauthorCommits(disabled bool) {
+	if o != nil {
+		o.disableCoauthorCommits.Store(disabled)
+	}
 }
 
 // Events returns a read-only channel of domain events.

@@ -286,6 +286,10 @@ function onSourceKeyDown(
   const id = ids[next];
   if (id === undefined) return;
   event.preventDefault();
+  const target = Array.from(
+    event.currentTarget.querySelectorAll<HTMLElement>('[role="option"]'),
+  )[next];
+  target?.focus();
   onSelect(id);
 }
 

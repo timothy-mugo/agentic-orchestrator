@@ -96,6 +96,7 @@ interface MenuState {
   }>;
   view: Array<{ id: string | undefined; label: string; enabled: boolean }>;
   feature: Array<{ id: string | undefined; label: string; enabled: boolean; visible: boolean }>;
+  window: Array<{ id: string | undefined; label: string; enabled: boolean }>;
 }
 
 /** Reads the live application menu out of the running main process. */
@@ -135,6 +136,11 @@ function readMenuState(handle: AppHandle): Promise<MenuState> {
         label: item.label,
         enabled: item.enabled,
         visible: item.visible,
+      })),
+      window: submenu('Window').map((item) => ({
+        id: item.id,
+        label: item.label,
+        enabled: item.enabled,
       })),
     };
   });
@@ -212,6 +218,12 @@ test(
         'Toggle Full Screen',
       ]);
       transcript.step('File, View, Feature, and Window are in the standard order with their items');
+      expect(initial.window.find((item) => item.id === 'window.debug')).toEqual({
+        id: 'window.debug',
+        label: 'Debug',
+        enabled: true,
+      });
+      transcript.step('Window ▸ Debug is listed and enabled');
 
       transcript.section('Navigate ▸ Recovery opens the Recovery sheet');
       const navigateIds = initial.navigate.map((item) => item.id);

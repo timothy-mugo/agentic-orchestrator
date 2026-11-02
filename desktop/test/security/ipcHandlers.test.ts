@@ -411,6 +411,7 @@ function makeServices(): IpcServices {
     installServerUpdate: vi.fn(() => Promise.resolve(serverUpdateState())),
     cancelServerUpdate: vi.fn(() => Promise.resolve(serverUpdateState())),
     getDiagnostics: vi.fn(() => diagnosticsSnapshot()),
+    getDebugLogs: vi.fn(() => ({ lines: [] as string[] })),
     revealDiagnostics: vi.fn(() => Promise.resolve({ ok: true })),
     clearDiagnostics: vi.fn(() => diagnosticsSnapshot()),
     preflightCompletion: vi.fn(() => Promise.reject(new Error('unused'))),

@@ -18,7 +18,9 @@ limitations under the License.
  * Bounded, redaction-first ring buffer for child-server stdio. Every line
  * is scrubbed on the way IN (bearer-like strings plus registered exact
  * secrets), so no unredacted copy is ever retained. Snapshot output feeds
- * local diagnostics only — it never crosses IPC as-is.
+ * local diagnostics and the Debug window. Diagnostics folds lines into
+ * bounded records; the Debug window re-redacts and cuts every line before
+ * it crosses IPC. The raw snapshot never crosses as-is.
  */
 import { redactText } from '../../shared/errors';
 

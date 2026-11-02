@@ -1559,6 +1559,7 @@ describe('KnownServerSchema', () => {
 describe('window purposes', () => {
   it('reads the purpose out of a renderer argv, defaulting to the main window', () => {
     expect(windowPurposeFromArgv([`${WINDOW_PURPOSE_ARGUMENT_PREFIX}settings`])).toBe('settings');
+    expect(windowPurposeFromArgv([`${WINDOW_PURPOSE_ARGUMENT_PREFIX}debug`])).toBe('debug');
     expect(windowPurposeFromArgv([`${WINDOW_PURPOSE_ARGUMENT_PREFIX}main`])).toBe('main');
     expect(windowPurposeFromArgv([])).toBe('main');
     expect(windowPurposeFromArgv(['--other-flag=settings'])).toBe('main');

@@ -2459,6 +2459,10 @@ function makeMockApi(
     installServerUpdate: () => Promise.resolve(serverUpdateStateForScene(scene)),
     cancelServerUpdate: () => Promise.resolve(serverUpdateStateForScene(scene)),
     getDiagnostics: () => Promise.resolve(diagnosticsSnapshotForScene(scene)),
+    getDebugLogs: () =>
+      Promise.resolve({
+        lines: ['runtime ready', 'gateway attached to bundled server'],
+      }),
     revealDiagnostics: () => Promise.resolve({ ok: true }),
     clearDiagnostics: () =>
       Promise.resolve({

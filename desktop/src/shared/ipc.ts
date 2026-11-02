@@ -31,11 +31,11 @@ export const ATTENTION_ALREADY_RESOLVED_NOTICE =
 export const ATTENTION_SUBMITTED_NOTICE = 'Submitted. Waiting for the server snapshot...';
 
 /**
- * The two window kinds the app ever opens. The main process keys its window
+ * The window kinds the app ever opens. The main process keys its window
  * registry by this value and hands it to each renderer as a constructor
  * argument; no other window is detachable.
  */
-export const WINDOW_PURPOSES = ['main', 'settings'] as const;
+export const WINDOW_PURPOSES = ['main', 'settings', 'debug'] as const;
 
 const WindowPurposeSchema = z.enum(WINDOW_PURPOSES);
 export type WindowPurpose = z.output<typeof WindowPurposeSchema>;
@@ -1051,6 +1051,19 @@ const DiagnosticsSnapshotSchema = z.strictObject({
   crashes: z.array(CrashMetadataSchema).max(10),
 });
 export type DiagnosticsSnapshot = z.output<typeof DiagnosticsSnapshotSchema>;
+
+/**
+ * Bounds for the Debug window's runtime-log snapshot. The main process
+ * re-redacts and cuts every line to these limits before the snapshot crosses
+ * IPC; the schema rejects anything larger.
+ */
+export const DEBUG_LOG_MAX_LINES = 400;
+export const DEBUG_LOG_MAX_LINE_CHARS = 2000;
+
+export const DebugLogSnapshotSchema = z.strictObject({
+  lines: z.array(z.string().max(DEBUG_LOG_MAX_LINE_CHARS)).max(DEBUG_LOG_MAX_LINES),
+});
+export type DebugLogSnapshot = z.output<typeof DebugLogSnapshotSchema>;
 
 // --- Workspace/setup operations ----------------------------------------------
 
@@ -4681,6 +4694,7 @@ export const ipcContracts = {
   getDiagnostics: { request: z.tuple([]), response: DiagnosticsSnapshotSchema },
   revealDiagnostics: { request: z.tuple([]), response: z.strictObject({ ok: z.boolean() }) },
   clearDiagnostics: { request: z.tuple([]), response: DiagnosticsSnapshotSchema },
+  getDebugLogs: { request: z.tuple([]), response: DebugLogSnapshotSchema },
 } satisfies Record<IpcMethod, IpcContract>;
 
 // --- The narrow window API the preload exposes -------------------------------
@@ -4694,7 +4708,7 @@ export interface AgenticoApi {
    */
   readonly platform: string;
   /**
-   * Which root this window is: the main workspace or the Settings window.
+   * Which root this window is: the main workspace, Settings, or Debug.
    * Supplied as a constructor argument when the window is created and read
    * synchronously here, so the entry point picks a root before first paint.
    */
@@ -4954,6 +4968,11 @@ export interface AgenticoApi {
   getDiagnostics(): Promise<DiagnosticsSnapshot>;
   revealDiagnostics(): Promise<{ ok: boolean }>;
   clearDiagnostics(): Promise<DiagnosticsSnapshot>;
+  /**
+   * The runtime's recent log lines, already redacted and length-bounded.
+   * The Debug window polls this; nothing else should.
+   */
+  getDebugLogs(): Promise<DebugLogSnapshot>;
   onAppEvent(listener: (event: AppEvent) => void): () => void;
 }
 

@@ -51,9 +51,9 @@ describe('mainWindowWebPreferences', () => {
     expect(prefs.preload).toBe('/app/out/preload/index.cjs');
   });
 
-  // Every window (main and settings) is built from this one preference set;
-  // purpose travels only as an extra process argument, so a second window can
-  // never be created with a weaker posture than the first.
+  // Every window (main, settings, and debug) is built from this one preference
+  // set; purpose travels only as an extra process argument, so another window
+  // can never be created with a weaker posture than the first.
   it('hands every window purpose the same hardened prefs, differing only in the purpose argument', () => {
     const hardened = mainWindowWebPreferences('/app/out/preload/index.cjs');
 

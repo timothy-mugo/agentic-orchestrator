@@ -119,6 +119,7 @@ import {
   routeWindowPurpose,
 } from './windowRegistry';
 import { redactText, toCanonicalError } from '../shared/errors';
+import { debugLogSnapshot } from './debugLogs';
 import {
   RENDERER_ENTRY_URL,
   RENDERER_ORIGIN,
@@ -455,6 +456,44 @@ function createSettingsWindow(
   return window;
 }
 
+const DEBUG_WINDOW_DEFAULT_WIDTH = 760;
+const DEBUG_WINDOW_DEFAULT_HEIGHT = 560;
+const DEBUG_WINDOW_MIN_WIDTH = 480;
+const DEBUG_WINDOW_MIN_HEIGHT = 320;
+
+/**
+ * The Debug window: a resizable utility window that tails the runtime's
+ * redacted log. It is never auto-opened, and closing it never enters the
+ * quit-decision flow — that belongs to the main window alone.
+ */
+function createDebugWindow(getCurrentAccent: () => string | null): BrowserWindow {
+  const window = new BrowserWindow({
+    title: 'Debug',
+    width: DEBUG_WINDOW_DEFAULT_WIDTH,
+    height: DEBUG_WINDOW_DEFAULT_HEIGHT,
+    minWidth: DEBUG_WINDOW_MIN_WIDTH,
+    minHeight: DEBUG_WINDOW_MIN_HEIGHT,
+    fullscreenable: false,
+    show: false,
+    backgroundColor: firstPaintBackground(),
+    ...(process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset',
+          // Centred in the 44px drag strip above the log heading.
+          trafficLightPosition: { x: 18, y: 16 },
+          visualEffectState: 'active',
+        }
+      : {}),
+    webPreferences: windowWebPreferences('debug'),
+  });
+
+  followThemeBackground(window);
+  replayAccentOnLoad(window, getCurrentAccent);
+  window.on('ready-to-show', () => window.show());
+  loadRenderer(window);
+  return window;
+}
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
@@ -753,9 +792,11 @@ if (!hasSingleInstanceLock) {
           const created =
             purpose === 'settings'
               ? createSettingsWindow(settings, () => accent.getCurrent())
-              : createMainWindow(settings, startConnection, handleWindowClose, () =>
-                  accent.getCurrent(),
-                );
+              : purpose === 'debug'
+                ? createDebugWindow(() => accent.getCurrent())
+                : createMainWindow(settings, startConnection, handleWindowClose, () =>
+                    accent.getCurrent(),
+                  );
           // Eviction is registered at creation so it is impossible to open a
           // window that outlives its own trust-set membership.
           created.on('closed', () => windows.evict(created));
@@ -907,6 +948,11 @@ if (!hasSingleInstanceLock) {
         });
       }
       return true;
+    };
+
+    /** Raises the Debug window. One per purpose; a second ask focuses the open one. */
+    const openDebugWindow = (): void => {
+      windows.openOrFocus('debug');
     };
 
     /**
@@ -1088,6 +1134,7 @@ if (!hasSingleInstanceLock) {
         showMainWindow();
         void startLocalRuntime();
       },
+      openDebugWindow,
     });
     nativeCommands.install();
     publishNativeCommandTestState(nativeCommands);
@@ -1665,6 +1712,7 @@ if (!hasSingleInstanceLock) {
       checkServerUpdate: () => serverUpdates.check(),
       installServerUpdate: (request) => serverUpdates.install(request),
       cancelServerUpdate: () => serverUpdates.cancel(),
+      getDebugLogs: () => debugLogSnapshot(logBuffer.snapshot()),
       getDiagnostics: () => diagnostics.snapshot(),
       revealDiagnostics: async () => {
         // Snapshot first so reveal also enforces diagnostics root creation and pruning.

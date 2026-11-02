@@ -59,6 +59,7 @@ describe('preload surface', () => {
     const argv = process.argv;
     for (const [argument, expected] of [
       ['--agentico-window-purpose=settings', 'settings'],
+      ['--agentico-window-purpose=debug', 'debug'],
       ['--agentico-window-purpose=devtools', 'main'],
     ] as const) {
       process.argv = [...argv, argument];

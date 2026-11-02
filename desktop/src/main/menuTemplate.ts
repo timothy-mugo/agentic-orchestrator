@@ -231,6 +231,31 @@ export function buildApplicationMenuTemplate(deps: MenuTemplateDeps): MenuItemCo
       label: 'Feature',
       submenu: FEATURE_COMMANDS.map((command) => featureItem(command, deps)),
     },
+    // Electron fills this role with Minimize, Zoom, and Bring All to Front,
+    // then appends the open-window list. Debug is inserted into that submenu
+    // after the template is built (`insertDebugWindowItem`), ahead of the
+    // first separator, so the platform items stay intact.
     { role: 'windowMenu' },
   ];
+}
+
+/** The Window menu's Debug item. Always enabled: logs matter before the runtime is ready. */
+export const DEBUG_WINDOW_MENU_ID = 'window.debug';
+
+export function debugWindowMenuItem(openDebugWindow: () => void): MenuItemConstructorOptions {
+  return {
+    id: DEBUG_WINDOW_MENU_ID,
+    label: 'Debug',
+    click: () => openDebugWindow(),
+  };
+}
+
+/**
+ * Where Debug sits in the built Window submenu: just before the first
+ * separator, so it follows Minimize and Zoom and precedes Bring All to Front.
+ * A submenu with no separator gets the item at the end.
+ */
+export function debugMenuInsertIndex(items: readonly { type?: string }[]): number {
+  const separator = items.findIndex((item) => item.type === 'separator');
+  return separator === -1 ? items.length : separator;
 }

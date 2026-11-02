@@ -17,6 +17,7 @@ limitations under the License.
 import {
   BrowserWindow,
   Menu,
+  MenuItem,
   Tray,
   nativeImage,
   type App,
@@ -29,7 +30,12 @@ import {
   type AppRouteEvent,
   type MainWindowUiState,
 } from '../shared/ipc';
-import { buildApplicationMenuTemplate } from './menuTemplate';
+import {
+  DEBUG_WINDOW_MENU_ID,
+  buildApplicationMenuTemplate,
+  debugMenuInsertIndex,
+  debugWindowMenuItem,
+} from './menuTemplate';
 import type { SupervisorGrade } from './quitCoordinator';
 
 interface NativeCommandControllerDeps {
@@ -39,6 +45,8 @@ interface NativeCommandControllerDeps {
   quit(): void;
   /** Starts (or attaches to) the bundled runtime and switches to it. */
   startLocalRuntime(): void;
+  /** Raises the Debug window. Always available, including before the runtime is ready. */
+  openDebugWindow(): void;
 }
 
 interface BackgroundStatus {
@@ -133,20 +141,20 @@ export class NativeCommandController {
   /** Rebuilds and installs the menu bar from the current summary. */
   private applyApplicationMenu(): void {
     this.menuRevision += 1;
-    Menu.setApplicationMenu(
-      Menu.buildFromTemplate(
-        buildApplicationMenuTemplate({
-          appName: this.deps.app.name,
-          uiState: this.uiState,
-          showWindow: () => this.deps.showWindow(),
-          quit: () => this.deps.quit(),
-          route: (event) => this.routeEvent(event),
-          startLocalRuntime: () => this.deps.startLocalRuntime(),
-          adjustZoom: adjustFocusedZoom,
-          setZoom: setFocusedZoom,
-        }),
-      ),
+    const menu = Menu.buildFromTemplate(
+      buildApplicationMenuTemplate({
+        appName: this.deps.app.name,
+        uiState: this.uiState,
+        showWindow: () => this.deps.showWindow(),
+        quit: () => this.deps.quit(),
+        route: (event) => this.routeEvent(event),
+        startLocalRuntime: () => this.deps.startLocalRuntime(),
+        adjustZoom: adjustFocusedZoom,
+        setZoom: setFocusedZoom,
+      }),
     );
+    insertDebugWindowItem(menu, () => this.deps.openDebugWindow());
+    Menu.setApplicationMenu(menu);
   }
 
   private refreshTray(): void {
@@ -223,6 +231,26 @@ export function buildTrayMenuTemplate(
       click: () => handlers.quit(),
     },
   ];
+}
+
+/**
+ * Puts Debug into the platform Window menu, just before its first separator.
+ * Electron's `windowMenu` role owns Minimize, Zoom, Bring All to Front, and
+ * the open-window list; inserting after that role is built keeps all of them.
+ * The built item's role is the lowercase `windowmenu`.
+ */
+export function insertDebugWindowItem(menu: Menu, openDebugWindow: () => void): void {
+  const windowItem = menu.items.find(
+    (item) => item.role?.toLowerCase() === 'windowmenu' || item.label === 'Window',
+  );
+  const submenu = windowItem?.submenu;
+  if (submenu == null || submenu.getMenuItemById(DEBUG_WINDOW_MENU_ID) != null) {
+    return;
+  }
+  submenu.insert(
+    debugMenuInsertIndex(submenu.items),
+    new MenuItem(debugWindowMenuItem(openDebugWindow)),
+  );
 }
 
 function adjustFocusedZoom(delta: number): void {
